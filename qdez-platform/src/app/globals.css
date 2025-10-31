@@ -1,0 +1,596 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ❌ 移除这行：不再需要 @import */
+/* @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap'); */
+
+@layer base {
+  /* ✅ 修复1：将 CSS 变量放在 :root，确保全局可用 */
+  :root {
+    --primary: #4F46E5;
+    --bg: #1a1a35;
+    --input-bg: #2a2a4a;
+  }
+
+  /* ✅ 修复2：主题变量覆盖 */
+  body.theme-arizona {
+    --primary: #D2691E;
+    --bg: #2E1A0F;
+    --input-bg: #3A2A1A;
+  }
+
+  body.theme-tokyo {
+    --primary: #FF69B4;
+    --bg: #3A2A3A;
+    --input-bg: #4A3A4A;
+  }
+
+  body.theme-london {
+    --primary: #8B0000;
+    --bg: #1A1A2A;
+    --input-bg: #2A2A3A;
+  }
+
+  body.theme-paris {
+    --primary: #800080;
+    --bg: #2A1A3A;
+    --input-bg: #3A2A4A;
+  }
+
+  body.theme-sydney {
+    --primary: #4682B4;
+    --bg: #1A2A3A;
+    --input-bg: #2A3A4A;
+  }
+
+  /* ✅ 修复3：body 样式（字体已通过 layout.tsx 设置，这里不需要了） */
+  body {
+    /* ❌ 移除：font-family: 'Press Start 2P', monospace; */
+    /* ✅ 字体已通过 layout.tsx 的 className 自动应用 */
+    color: #e0f8cf;
+    overflow-x: hidden;
+    transition: background-color 0.4s;
+    background-color: var(--bg);
+    line-height: 1.8;
+  }
+}
+
+@layer components {
+  /* 像素边框 */
+  .pixel-border {
+    border: 4px solid var(--primary);
+    box-shadow: 4px 4px 0 #000000;
+    transition: border-color 0.4s;
+  }
+
+  /* 像素输入框 */
+  .pixel-input {
+    background-color: var(--input-bg);
+    color: #e0f8cf;
+    border: 2px solid var(--primary);
+    box-shadow: 2px 2px 0 #000000;
+    /* ❌ 移除：font-family: 'Press Start 2P', monospace; */
+    /* ✅ 继承自 body */
+    font-size: 12px;
+    padding: 8px;
+    outline: none;
+    transition: border-color 0.4s;
+  }
+
+  /* 像素按钮 */
+  .pixel-btn {
+    background-color: var(--primary);
+    color: white;
+    border: 4px solid white;
+    box-shadow: 4px 4px 0 #000000;
+    /* ❌ 移除：font-family: 'Press Start 2P', monospace; */
+    /* ✅ 继承自 body */
+    font-size: 12px;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s, transform 0.1s;
+  }
+
+  .pixel-btn:hover {
+    opacity: 0.9;
+  }
+
+  .pixel-btn:active {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0 #000000;
+  }
+
+  /* 按钮变体 */
+  .pixel-btn-secondary {
+    background-color: #7C3AED;
+  }
+
+  .pixel-btn-success {
+    background-color: #10B981;
+  }
+
+  .pixel-btn-danger {
+    background-color: #EF4444;
+  }
+
+  /* 像素容器 */
+  .pixel-container {
+    border: 4px solid var(--primary);
+    box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.5);
+    background: rgba(42, 42, 74, 0.8);
+    backdrop-filter: blur(10px);
+  }
+
+  /* 像素字样式 */
+  .pixel-char {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    grid-template-rows: repeat(12, 1fr);
+    gap: 2px;
+    margin: 0 15px;
+    width: 120px;
+    height: 120px;
+  }
+
+  .pixel-cell {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    border: 1px solid #444;
+    transition: background 0.1s;
+  }
+
+  .pixel-cell.on {
+    background: #e0f8cf;
+    border-color: #e0f8cf;
+    box-shadow: 0 0 8px #e0f8cf;
+  }
+
+  /* 加载屏幕 */
+  #loading-screen {
+    position: relative;
+  }
+
+  #loading-screen #school-name {
+    filter: drop-shadow(0 0 20px rgba(224, 248, 207, 0.5));
+  }
+
+  #loading-screen #acronym {
+    text-shadow: 0 0 20px rgba(16, 185, 129, 0.8);
+  }
+
+  #mountain-sea-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+  }
+
+  /* 光标闪烁 */
+  .cursor::after {
+    content: "█";
+    animation: blink 1s infinite;
+  }
+
+  @keyframes blink {
+    50% {
+      opacity: 0;
+    }
+  }
+
+  .icon {
+    font-size: 24px;
+    line-height: 1;
+  }
+
+  /* 标题样式 */
+  .pixel-title {
+    font-size: 28px;
+    text-shadow: 4px 4px 0 #000;
+    letter-spacing: 2px;
+  }
+
+  .pixel-subtitle {
+    font-size: 12px;
+    color: #ffd700;
+    text-shadow: 2px 2px 0 #000;
+  }
+
+  /* 导航栏 */
+  .pixel-nav {
+    background: rgba(26, 26, 53, 0.95);
+    border-bottom: 4px solid var(--primary);
+    backdrop-filter: blur(10px);
+  }
+
+  .pixel-nav a,
+  .pixel-nav button {
+    color: #e0f8cf;
+    font-size: 10px;
+    text-decoration: none;
+    padding: 8px 12px;
+    transition: background 0.2s;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+  }
+
+  .pixel-nav a:hover,
+  .pixel-nav button:hover {
+    background: rgba(79, 70, 229, 0.3);
+  }
+
+  .pixel-nav a.active,
+  .pixel-nav button.active {
+    background: rgba(79, 70, 229, 0.5);
+    border-bottom: 2px solid #ffd700;
+  }
+
+  /* 帖子卡片 */
+  .post-card {
+    background: rgba(42, 42, 74, 0.8);
+    border: 3px solid var(--primary);
+    box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.5);
+    padding: 20px;
+    margin-bottom: 20px;
+    transition: transform 0.2s;
+  }
+
+  .post-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 8px 12px 0 rgba(0, 0, 0, 0.5);
+  }
+
+  .post-tag {
+    display: inline-block;
+    background: #7C3AED;
+    color: white;
+    padding: 4px 8px;
+    font-size: 8px;
+    margin-right: 8px;
+    border: 2px solid white;
+  }
+
+  .post-meta {
+    font-size: 9px;
+    color: #ffd700;
+    margin-top: 12px;
+  }
+
+  /* 问答卡片 */
+  .qa-card {
+    background: rgba(42, 42, 74, 0.8);
+    border: 3px solid #10B981;
+    box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.5);
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+
+  .answer-count {
+    display: inline-block;
+    background: #10B981;
+    color: white;
+    padding: 8px 12px;
+    font-size: 12px;
+    border: 2px solid white;
+    margin-right: 12px;
+  }
+
+  .answer-count.solved {
+    background: #ffd700;
+    color: #000;
+  }
+
+  /* 资源卡片 */
+  .resource-card {
+    background: rgba(42, 42, 74, 0.8);
+    border: 3px solid #EC4899;
+    box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.5);
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+
+  .resource-type {
+    display: inline-block;
+    background: #EC4899;
+    color: white;
+    padding: 6px 12px;
+    font-size: 9px;
+    border: 2px solid white;
+    margin-right: 8px;
+  }
+
+  /* 统计卡片 */
+  .stat-card {
+    background: rgba(42, 42, 74, 0.8);
+    border: 3px solid #F59E0B;
+    box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.5);
+    padding: 20px;
+    text-align: center;
+  }
+
+  .stat-number {
+    font-size: 32px;
+    color: #ffd700;
+    text-shadow: 3px 3px 0 #000;
+    margin: 10px 0;
+  }
+
+  /* 活动卡片 */
+  .event-card {
+    background: rgba(42, 42, 74, 0.8);
+    border: 3px solid #06B6D4;
+    box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.5);
+    padding: 20px;
+    margin-bottom: 20px;
+    position: relative;
+  }
+
+  .event-date {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: #06B6D4;
+    color: white;
+    padding: 12px;
+    text-align: center;
+    border: 2px solid white;
+    min-width: 70px;
+  }
+
+  .event-day {
+    font-size: 24px;
+    display: block;
+  }
+
+  .event-month {
+    font-size: 8px;
+    display: block;
+  }
+
+  /* 徽章样式 */
+  .badge {
+    display: inline-block;
+    padding: 4px 8px;
+    font-size: 8px;
+    border: 2px solid white;
+    margin-right: 6px;
+  }
+
+  .badge-hot {
+    background: #EF4444;
+    color: white;
+  }
+
+  .badge-new {
+    background: #10B981;
+    color: white;
+  }
+
+  .badge-featured {
+    background: #ffd700;
+    color: #000;
+  }
+
+  /* 闪烁动画 */
+  .blink {
+    animation: blink 1s infinite;
+  }
+
+  /* ✅ 扫描线效果 - 柔和版本 */
+  .scanlines {
+    position: relative;
+  }
+
+  .scanlines::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.08),
+      rgba(0, 0, 0, 0.08) 1px,
+      transparent 1px,
+      transparent 2px
+    );
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0.5;
+  }
+
+  /* 搜索框 */
+  .pixel-search {
+    background: rgba(42, 42, 74, 0.8);
+    border: 3px solid var(--primary);
+    color: #e0f8cf;
+    padding: 12px;
+    /* ❌ 移除：font-family */
+    font-size: 10px;
+    width: 100%;
+    outline: none;
+  }
+
+  .pixel-search:focus {
+    border-color: #ffd700;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+  }
+
+  /* 表单样式 */
+  .pixel-textarea,
+  .pixel-select {
+    background: rgba(42, 42, 74, 0.8);
+    border: 3px solid var(--primary);
+    color: #e0f8cf;
+    padding: 12px;
+    /* ❌ 移除：font-family */
+    font-size: 10px;
+    width: 100%;
+    outline: none;
+    margin-bottom: 16px;
+  }
+
+  .pixel-textarea {
+    min-height: 150px;
+    resize: vertical;
+    line-height: 1.6;
+  }
+
+  .pixel-textarea:focus,
+  .pixel-select:focus {
+    border-color: #ffd700;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+  }
+
+  /* Footer */
+  .pixel-footer {
+    background: rgba(26, 26, 53, 0.95);
+    border-top: 4px solid var(--primary);
+    color: #e0f8cf;
+    font-size: 10px;
+    padding: 30px 20px;
+  }
+}
+
+/* ==========================================
+   📍 Leaflet 地图样式修复
+   ========================================== */
+
+/* 确保地图容器有正确的尺寸 */
+#map {
+  height: 600px;
+  width: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+/* 修复 Leaflet 容器样式 */
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  position: relative;
+  outline: none;
+}
+
+/* 自定义标记聚合样式 */
+.marker-cluster-custom {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* 修复弹出窗口样式 */
+.leaflet-popup-content-wrapper {
+  background: rgba(42, 42, 74, 0.95);
+  color: #e0f8cf;
+  border: 2px solid #4F46E5;
+  box-shadow: 4px 4px 0 #000;
+  font-family: 'Press Start 2P', monospace;
+}
+
+.leaflet-popup-tip {
+  background: rgba(42, 42, 74, 0.95);
+  border: 2px solid #4F46E5;
+}
+
+/* ==========================================
+   🎨 D3 网络图样式
+   ========================================== */
+
+/* 网络图容器 */
+#network-chart-container {
+  position: relative;
+  overflow: hidden;
+  background: #1a1a35;
+}
+
+#network-chart-container svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* 链接线条样式 */
+.link {
+  stroke: #4F46E5;
+  stroke-opacity: 0.4;
+  stroke-width: 2px;
+}
+
+/* 节点圆圈样式 */
+.node-circle {
+  stroke: #e0f8cf;
+  stroke-width: 2px;
+  cursor: grab;
+  transition: stroke-width 0.2s;
+}
+
+.node-circle:active {
+  cursor: grabbing;
+}
+
+.node-circle:hover {
+  stroke-width: 4px;
+}
+
+/* 节点文字样式 */
+.node-text {
+  font-size: 10px;
+  font-family: 'Press Start 2P', monospace;
+  fill: #e0f8cf;
+  pointer-events: none;
+  text-anchor: middle;
+  user-select: none;
+}
+
+/* ==========================================
+   📱 响应式调整
+   ========================================== */
+
+@media (max-width: 768px) {
+  #map {
+    height: 400px;
+  }
+
+  #network-chart-container {
+    height: 400px;
+  }
+
+  .node-text {
+    font-size: 8px;
+  }
+}
+
+/* ==========================================
+   🎯 工具提示样式（如果需要）
+   ========================================== */
+
+#network-tooltip {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  background-color: #2a2a4a;
+  color: #e0f8cf;
+  padding: 12px 16px;
+  border: 3px solid #4F46E5;
+  box-shadow: 4px 4px 0 #000;
+  font-size: 10px;
+  transition: opacity 0.2s;
+  z-index: 30;
+  line-height: 1.6;
+  font-family: 'Press Start 2P', monospace;
+}
+
+
+
+
+
+
+
+
+
+

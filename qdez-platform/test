@@ -1,0 +1,116 @@
+Write-Host "=" * 70 -ForegroundColor Cyan
+Write-Host "  数据库连接问题诊断和修复" -ForegroundColor Green
+Write-Host "=" * 70 -ForegroundColor Cyan
+
+# ========== 步骤1：清理并重置 ==========
+Write-Host "`n【步骤1：清理环境】" -ForegroundColor Yellow
+docker-compose down -v
+Start-Sleep -Seconds 2
+
+# ========== 步骤2：创建配置文件 ==========
+Write-Host "`n【步骤2：创建配置】" -ForegroundColor Yellow
+
+# docker-compose.yml（添加额外配置）
+$dockerCompose = @'
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: qdez-postgres
+    command:
+      - postgres
+      - -c
+      - listen_addresses=*
+      - -c
+      - max_connections=100
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: qdez_alumni
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d qdez_alumni"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+volumes:
+  postgres_data:
+'@
+[System.IO.File]::WriteAllText("$PWD\docker-compose.yml", $dockerCompose, [System.Text.Encoding]::UTF8)
+Write-Host "✅ docker-compose.yml" -ForegroundColor Green
+
+# .env（不使用引号，使用 127.0.0.1）
+$envContent = @"
+DATABASE_URL=postgresql://postgres:password@127.0.0.1:5432/qdez_alumni?schema=public
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=super-secret-key-minimum-32-characters-required-change-this
+NODE_ENV=development
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+"@
+[System.IO.File]::WriteAllText("$PWD\.env", $envContent, [System.Text.Encoding]::ASCII)
+Write-Host "✅ .env (使用 127.0.0.1, 无引号)" -ForegroundColor Green
+
+Write-Host "`n.env 内容：" -ForegroundColor Cyan
+Get-Content .env | ForEach-Object { Write-Host "  $_" }
+
+# ========== 步骤3：启动数据库 ==========
+Write-Host "`n【步骤3：启动数据库】" -ForegroundColor Yellow
+docker-compose up -d
+
+Write-Host "等待数据库完全启动（20秒）..." -ForegroundColor Cyan
+Start-Sleep -Seconds 20
+
+# ========== 步骤4：验证连接 ==========
+Write-Host "`n【步骤4：验证连接】" -ForegroundColor Yellow
+
+Write-Host "`n1. 容器健康检查..." -ForegroundColor Cyan
+docker ps --filter "name=qdez-postgres" --format "table {{.Names}}\t{{.Status}}"
+
+Write-Host "`n2. PostgreSQL 就绪状态..." -ForegroundColor Cyan
+docker exec qdez-postgres pg_isready -U postgres -d qdez_alumni
+
+Write-Host "`n3. 测试连接（从容器内）..." -ForegroundColor Cyan
+docker exec qdez-postgres psql -U postgres -d qdez_alumni -c "SELECT version();" 2>&1 | Select-String "PostgreSQL"
+
+Write-Host "`n4. 测试连接（使用连接字符串）..." -ForegroundColor Cyan
+docker exec qdez-postgres psql "postgresql://postgres:password@127.0.0.1:5432/qdez_alumni" -c "SELECT 1 AS test;" 2>&1
+
+# ========== 步骤5：清理 Prisma 缓存 ==========
+Write-Host "`n【步骤5：清理 Prisma 缓存】" -ForegroundColor Yellow
+Remove-Item -Recurse -Force "node_modules/.prisma","node_modules/@prisma" -ErrorAction SilentlyContinue
+Write-Host "✅ 缓存已清理" -ForegroundColor Green
+
+# ========== 步骤6：测试 Prisma ==========
+Write-Host "`n【步骤6：运行 Prisma】" -ForegroundColor Yellow
+
+Write-Host "`n生成客户端..." -ForegroundColor Cyan
+pnpm db:generate
+
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "`n推送 Schema..." -ForegroundColor Cyan
+    pnpm db:push
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "`n" -NoNewline
+        Write-Host "=" * 70 -ForegroundColor Green
+        Write-Host "  🎉 成功！数据库已就绪！" -ForegroundColor Green
+        Write-Host "=" * 70 -ForegroundColor Green
+
+        Write-Host "`n查看创建的表：" -ForegroundColor Cyan
+        docker exec qdez-postgres psql -U postgres -d qdez_alumni -c "\dt"
+
+        Write-Host "`n下一步：" -ForegroundColor Cyan
+        Write-Host "  pnpm dev" -ForegroundColor White
+    } else {
+        Write-Host "`n❌ db:push 失败" -ForegroundColor Red
+        Write-Host "尝试手动设置环境变量..." -ForegroundColor Yellow
+        Write-Host '$env:DATABASE_URL = "postgresql://postgres:password@127.0.0.1:5432/qdez_alumni?schema=public"' -ForegroundColor Cyan
+        Write-Host "pnpm db:push" -ForegroundColor Cyan
+    }
+} else {
+    Write-Host "`n❌ db:generate 失败" -ForegroundColor Red
+}
