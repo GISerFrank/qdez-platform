@@ -78,6 +78,11 @@
     transition: border-color 0.4s;
   }
 
+  .pixel-input:focus {
+    @apply border-yellow-400;
+    box-shadow: 0 0 10px rgba(250, 204, 21, 0.5);
+  }
+
   /* 像素按钮 */
   .pixel-btn {
     background-color: var(--primary);
@@ -454,6 +459,15 @@
     color: #e0f8cf;
     font-size: 10px;
     padding: 30px 20px;
+  }
+
+  .progress-bar {
+    @apply h-4 bg-gray-700 relative overflow-hidden pixel-border;
+  }
+
+  .progress-fill {
+    @apply h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-500;
+    box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
   }
 }
 

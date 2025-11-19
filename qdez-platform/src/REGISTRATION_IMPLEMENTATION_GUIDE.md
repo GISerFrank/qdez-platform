@@ -510,7 +510,7 @@ export async function POST(request: NextRequest) {
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function RegisterPage() {
+export default function Page() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const codeFromUrl = searchParams.get('code');
