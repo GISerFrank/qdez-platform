@@ -7,17 +7,18 @@ import Step1BasicInfo from './components/Step1BasicInfo';
 import Step2QdezInfo from './components/Step2QdezInfo';
 import Step3StudyInfo from './components/Step3StudyInfo';
 import Step4ProfileInfo from './components/Step4ProfileInfo';
+import PixelCampusBackground from './components/PixelCampusBackground';
 
 export default function Page() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const codeFromUrl = searchParams.get('code');
-  
+
   // 步骤控制：0=邀请码验证，1-4=注册步骤
   const [currentStep, setCurrentStep] = useState(codeFromUrl ? 1 : 0);
   const [inviteCode, setInviteCode] = useState(codeFromUrl || '');
   const [inviteCodeInfo, setInviteCodeInfo] = useState<any>(null);
-  
+
   // 表单数据
   const [formData, setFormData] = useState({
     // Step 1: 基础账号
@@ -26,13 +27,13 @@ export default function Page() {
     password: '',
     confirmPassword: '',
     inviteCode: codeFromUrl || '',
-    
+
     // Step 2: 二中身份
     name: '',
     qdezEnrollmentYear: new Date().getFullYear() - 3,
     qdezGraduationYear: undefined as number | undefined,
     qdezClass: '',
-    
+
     // Step 3: 留学信息
     country: '',
     city: '',
@@ -41,7 +42,7 @@ export default function Page() {
     degree: '' as '' | '本科' | '硕士' | '博士' | '其他',
     enrollmentYear: undefined as number | undefined,
     expectedGradYear: undefined as number | undefined,
-    
+
     // Step 4: 完善资料
     displayName: '',
     bio: '',
@@ -134,55 +135,55 @@ export default function Page() {
     switch (currentStep) {
       case 0:
         return (
-          <InviteCodeStep
-            inviteCode={inviteCode}
-            setInviteCode={setInviteCode}
-            onSuccess={handleInviteCodeSuccess}
-          />
+            <InviteCodeStep
+                inviteCode={inviteCode}
+                setInviteCode={setInviteCode}
+                onSuccess={handleInviteCodeSuccess}
+            />
         );
       case 1:
         return (
-          <Step1BasicInfo
-            formData={formData}
-            errors={errors}
-            updateFormData={updateFormData}
-            onNext={handleNext}
-            isLoading={isLoading}
-            inviteCodeInfo={inviteCodeInfo}
-          />
+            <Step1BasicInfo
+                formData={formData}
+                errors={errors}
+                updateFormData={updateFormData}
+                onNext={handleNext}
+                isLoading={isLoading}
+                inviteCodeInfo={inviteCodeInfo}
+            />
         );
       case 2:
         return (
-          <Step2QdezInfo
-            formData={formData}
-            errors={errors}
-            updateFormData={updateFormData}
-            onNext={handleNext}
-            onBack={handleBack}
-            isLoading={isLoading}
-          />
+            <Step2QdezInfo
+                formData={formData}
+                errors={errors}
+                updateFormData={updateFormData}
+                onNext={handleNext}
+                onBack={handleBack}
+                isLoading={isLoading}
+            />
         );
       case 3:
         return (
-          <Step3StudyInfo
-            formData={formData}
-            errors={errors}
-            updateFormData={updateFormData}
-            onNext={handleNext}
-            onBack={handleBack}
-            isLoading={isLoading}
-          />
+            <Step3StudyInfo
+                formData={formData}
+                errors={errors}
+                updateFormData={updateFormData}
+                onNext={handleNext}
+                onBack={handleBack}
+                isLoading={isLoading}
+            />
         );
       case 4:
         return (
-          <Step4ProfileInfo
-            formData={formData}
-            errors={errors}
-            updateFormData={updateFormData}
-            onSubmit={handleSubmit}
-            onBack={handleBack}
-            isLoading={isLoading}
-          />
+            <Step4ProfileInfo
+                formData={formData}
+                errors={errors}
+                updateFormData={updateFormData}
+                onSubmit={handleSubmit}
+                onBack={handleBack}
+                isLoading={isLoading}
+            />
         );
       default:
         return null;
@@ -190,33 +191,37 @@ export default function Page() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 scanlines bg-gradient-to-b from-gray-900 to-gray-800">
-      <div className="w-full max-w-2xl">
-        {/* 进度条（步骤1-4时显示） */}
-        {currentStep > 0 && (
-          <div className="mb-8">
-            <div className="progress-bar">
-              <div
-                className="progress-fill"
-                style={{ width: `${(currentStep / 4) * 100}%` }}
-              />
-            </div>
-            <p className="text-xs text-center mt-2 text-gray-400">
-              STEP {currentStep}/4
-            </p>
-          </div>
-        )}
+      <div className="min-h-screen flex items-center justify-center p-4 relative">
+        {/* 像素化校园背景 */}
+        <PixelCampusBackground />
 
-        {/* 当前步骤内容 */}
-        {renderStep()}
+        {/* 内容层 */}
+        <div className="w-full max-w-2xl relative z-10">
+          {/* 进度条（步骤1-4时显示） */}
+          {currentStep > 0 && (
+              <div className="mb-8">
+                <div className="progress-bar">
+                  <div
+                      className="progress-fill"
+                      style={{ width: `${(currentStep / 4) * 100}%` }}
+                  />
+                </div>
+                <p className="text-xs text-center mt-2 text-gray-400">
+                  STEP {currentStep}/4
+                </p>
+              </div>
+          )}
 
-        {/* 全局错误提示 */}
-        {errors.submit && (
-          <div className="mt-4 text-center">
-            <p className="error-text">{errors.submit}</p>
-          </div>
-        )}
+          {/* 当前步骤内容 */}
+          {renderStep()}
+
+          {/* 全局错误提示 */}
+          {errors.submit && (
+              <div className="mt-4 text-center">
+                <p className="error-text">{errors.submit}</p>
+              </div>
+          )}
+        </div>
       </div>
-    </div>
   );
 }
