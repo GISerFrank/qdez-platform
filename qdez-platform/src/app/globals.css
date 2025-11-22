@@ -14,31 +14,33 @@
   }
 
   /* ✅ 修复2：主题变量覆盖 */
-  body.theme-arizona {
+  /* 将所有 body.theme-* 改为 [data-theme="*"] */
+
+  [data-theme="arizona"] {
     --primary: #D2691E;
     --bg: #2E1A0F;
     --input-bg: #3A2A1A;
   }
 
-  body.theme-tokyo {
+  [data-theme="tokyo"] {
     --primary: #FF69B4;
     --bg: #3A2A3A;
     --input-bg: #4A3A4A;
   }
 
-  body.theme-london {
+  [data-theme="london"] {
     --primary: #8B0000;
     --bg: #1A1A2A;
     --input-bg: #2A2A3A;
   }
 
-  body.theme-paris {
+  [data-theme="paris"] {
     --primary: #800080;
     --bg: #2A1A3A;
     --input-bg: #3A2A4A;
   }
 
-  body.theme-sydney {
+  [data-theme="sydney"] {
     --primary: #4682B4;
     --bg: #1A2A3A;
     --input-bg: #2A3A4A;
