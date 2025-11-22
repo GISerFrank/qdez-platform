@@ -1,5 +1,5 @@
 // src/app/api/user/avatar/route.ts
-// 用户头像上传
+// 用户头像上传 - 匹配当前schema
 
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
@@ -17,11 +17,11 @@ export async function POST(request: NextRequest) {
   try {
     // 1. 验证用户登录状态
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user?.id) {
       return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
+          { error: "Unauthorized" },
+          { status: 401 }
       );
     }
 
@@ -31,8 +31,8 @@ export async function POST(request: NextRequest) {
 
     if (!file) {
       return NextResponse.json(
-        { error: "No file provided" },
-        { status: 400 }
+          { error: "No file provided" },
+          { status: 400 }
       );
     }
 
@@ -40,8 +40,8 @@ export async function POST(request: NextRequest) {
     const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json(
-        { error: "Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed" },
-        { status: 400 }
+          { error: "Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed" },
+          { status: 400 }
       );
     }
 
@@ -49,8 +49,8 @@ export async function POST(request: NextRequest) {
     const maxSize = 5 * 1024 * 1024; // 5MB
     if (file.size > maxSize) {
       return NextResponse.json(
-        { error: "File too large. Maximum size is 5MB" },
-        { status: 400 }
+          { error: "File too large. Maximum size is 5MB" },
+          { status: 400 }
       );
     }
 
@@ -72,19 +72,19 @@ export async function POST(request: NextRequest) {
 
     // 8. 更新数据库中的头像URL
     const avatarUrl = `/uploads/avatars/${fileName}`;
-    
+
     const updatedUser = await prisma.user.update({
       where: {
         id: session.user.id,
       },
       data: {
-        avatar: avatarUrl,
+        avatarUrl: avatarUrl,  // ✅ 使用正确的字段名
         updatedAt: new Date(),
       },
       select: {
         id: true,
         username: true,
-        avatar: true,
+        avatarUrl: true,
       },
     });
 
@@ -93,14 +93,18 @@ export async function POST(request: NextRequest) {
       success: true,
       message: "Avatar uploaded successfully",
       avatar: avatarUrl,
-      user: updatedUser,
+      user: {
+        id: updatedUser.id,
+        username: updatedUser.username,
+        avatar: updatedUser.avatarUrl,  // ✅ 返回时使用统一名称
+      },
     });
 
   } catch (error) {
     console.error("Avatar upload error:", error);
     return NextResponse.json(
-      { error: "Failed to upload avatar" },
-      { status: 500 }
+        { error: "Failed to upload avatar" },
+        { status: 500 }
     );
   }
 }
@@ -113,11 +117,11 @@ export async function DELETE(request: NextRequest) {
   try {
     // 1. 验证用户登录状态
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user?.id) {
       return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
+          { error: "Unauthorized" },
+          { status: 401 }
       );
     }
 
@@ -127,13 +131,13 @@ export async function DELETE(request: NextRequest) {
         id: session.user.id,
       },
       data: {
-        avatar: null,
+        avatarUrl: null,  // ✅ 使用正确的字段名
         updatedAt: new Date(),
       },
       select: {
         id: true,
         username: true,
-        avatar: true,
+        avatarUrl: true,
       },
     });
 
@@ -141,14 +145,18 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: "Avatar removed successfully",
-      user: updatedUser,
+      user: {
+        id: updatedUser.id,
+        username: updatedUser.username,
+        avatar: updatedUser.avatarUrl,
+      },
     });
 
   } catch (error) {
     console.error("Avatar delete error:", error);
     return NextResponse.json(
-      { error: "Failed to remove avatar" },
-      { status: 500 }
+        { error: "Failed to remove avatar" },
+        { status: 500 }
     );
   }
 }

@@ -8,7 +8,7 @@ import QAPage from './campus/QAPage'
 import ResourcesPage from './campus/ResourcesPage'
 import EventsPage from './campus/EventsPage'
 import NetworkPage from './campus/NetworkPage'
-import ProfilePage from './campus/ProfilePage'
+import ProfilePage from './profile/page'
 import Footer from './campus/Footer'
 
 export default function MainPage() {
@@ -94,7 +94,7 @@ export default function MainPage() {
         </div>
 
         <div style={{ display: currentPage === 'profile' ? 'block' : 'none' }}>
-          <ProfilePage userInfo={userInfo} />
+          <ProfilePage />
         </div>
       </main>
 

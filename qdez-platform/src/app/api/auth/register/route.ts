@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import prisma from "@/lib/prisma";
 import bcrypt from 'bcryptjs';
 import { completeRegistrationSchema } from '@/lib/validation';
 
-const prisma = new PrismaClient();
 
 /**
  * 用户注册 API
@@ -105,7 +104,7 @@ export async function POST(request: NextRequest) {
                     bio: data.bio,
                     wechat: data.wechat,
                     linkedin: data.linkedin,
-                    website: data.website,
+                    website: data.personalWebsite,
                     privacySettings: data.privacySettings || {
                         profilePublic: true,
                         locationPublic: true,

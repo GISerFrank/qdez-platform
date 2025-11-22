@@ -1,30 +1,24 @@
 /**
- * NextAuth.js 认证配置 - 修复类型错误版本
+ * NextAuth.js 认证配置 - JWT 策略版本
  *
  * 功能：
  * - Credentials 登录（用户名/邮箱 + 密码）
- * - Database Session 策略
+ * - JWT Session 策略
  * - 完整的用户信息存储在 session 中
  */
 
 import { NextAuthOptions } from "next-auth";
-import { PrismaAdapter } from "@auth/prisma-adapter";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import type { Adapter } from "next-auth/adapters";
 
 const prisma = new PrismaClient();
 
 export const authOptions: NextAuthOptions = {
-  // ✅ 修复：使用类型断言
-  adapter: PrismaAdapter(prisma) as Adapter,
-
-  // 使用数据库 Session 策略
+  // ✅ 使用 JWT Session 策略
   session: {
-    strategy: "database",
+    strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30天
-    updateAge: 24 * 60 * 60,   // 24小时更新一次
   },
 
   providers: [
@@ -69,63 +63,68 @@ export const authOptions: NextAuthOptions = {
           data: { lastLoginAt: new Date() },
         });
 
-        // 返回用户信息（会被存入 session）
+        // ✅ 返回完整用户信息（会被存入 JWT token）
         return {
           id: user.id,
           email: user.email,
-          name: user.name,
+          name: user.name ?? user.username, // 使用 username 作为后备
           username: user.username,
+          displayName: user.displayName,
+          currentSchool: user.currentSchool,
+          major: user.major,
+          country: user.country,
+          city: user.city,
+          qdezClass: user.qdezClass,
+          qdezEnrollmentYear: user.qdezEnrollmentYear,
+          points: user.points,
+          role: user.role,
         };
       },
     }),
   ],
 
   callbacks: {
-    // 自定义 session 内容
-    async session({ session, user }) {
-      // 从数据库获取完整用户信息
-      const fullUser = await prisma.user.findUnique({
-        where: { id: user.id },
-        select: {
-          id: true,
-          username: true,
-          email: true,
-          name: true,
-          displayName: true,
-          // ✅ 修复：只选择存在的字段，如果你的 Schema 中没有 avatar，就注释掉
-          // avatar: true,
-          currentSchool: true,
-          major: true,
-          country: true,
-          city: true,
-          qdezClass: true,
-          qdezEnrollmentYear: true,
-          points: true,
-          role: true,
-        },
-      });
+    // ✅ JWT 回调：首次登录时将用户信息存入 token
+    async jwt({ token, user }) {
+      if (user) {
+        // 首次登录，user 对象存在
+        token.id = user.id;
+        token.username = user.username;
+        token.email = user.email;
+        token.name = user.name;
+        token.displayName = user.displayName;
+        token.currentSchool = user.currentSchool;
+        token.major = user.major;
+        token.country = user.country;
+        token.city = user.city;
+        token.qdezClass = user.qdezClass;
+        token.qdezEnrollmentYear = user.qdezEnrollmentYear;
+        token.points = user.points;
+        token.role = user.role;
+      }
+      return token;
+    },
 
-      if (fullUser) {
+    // ✅ Session 回调：从 token 提取信息到 session
+    async session({ session, token }) {
+      if (token) {
         session.user = {
           ...session.user,
-          // ✅ 修复：处理 nullable 字段
-          id: fullUser.id,
-          username: fullUser.username,
-          email: fullUser.email,
-          name: fullUser.name ?? fullUser.username,
-          displayName: fullUser.displayName ?? undefined,
-          // avatar: fullUser.avatar ?? undefined,  // 如果有 avatar 字段，取消注释
-          currentSchool: fullUser.currentSchool ?? undefined,
-          major: fullUser.major ?? undefined,
-          country: fullUser.country ?? undefined,
-          city: fullUser.city ?? undefined,
-          qdezClass: fullUser.qdezClass ?? undefined,
-          qdezEnrollmentYear: fullUser.qdezEnrollmentYear ?? undefined,
-          points: fullUser.points,
-          role: fullUser.role,
+          id: token.id as string,
+          username: token.username as string,
+          email: token.email as string,
+          name: token.name as string,
+          displayName: token.displayName as string | undefined,
+          currentSchool: token.currentSchool as string | undefined,
+          major: token.major as string | undefined,
+          country: token.country as string | undefined,
+          city: token.city as string | undefined,
+          qdezClass: token.qdezClass as string | undefined,
+          qdezEnrollmentYear: token.qdezEnrollmentYear as number | undefined,
+          points: token.points as number,
+          role: token.role as string,
         };
       }
-
       return session;
     },
   },

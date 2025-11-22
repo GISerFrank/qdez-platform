@@ -62,7 +62,7 @@ qdez-react/
 │   │   ├── ResourcesPage.tsx   # 资源
 │   │   ├── EventsPage.tsx      # 活动
 │   │   ├── NetworkPage.tsx     # 网络（地图+关系图）
-│   │   ├── ProfilePage.tsx     # 个人中心
+│   │   ├── page.tsx     # 个人中心
 │   │   └── Footer.tsx          # 页脚
 │   └── lib/
 │       └── mockData.ts         # 模拟数据

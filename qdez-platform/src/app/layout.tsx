@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Press_Start_2P } from 'next/font/google'
 import './globals.css'
 import 'leaflet/dist/leaflet.css'
+import AuthProvider from "@/components/AuthProvider";
 
 // ✅ 使用 Next.js Font Optimization 加载 Press Start 2P
 const pressStart2P = Press_Start_2P({
@@ -25,7 +26,9 @@ export default function RootLayout({
     <html lang="zh-CN">
       {/* ✅ 添加字体类名到 body */}
       <body className={pressStart2P.className}>
+      <AuthProvider>
         {children}
+      </AuthProvider>
       </body>
     </html>
   )
