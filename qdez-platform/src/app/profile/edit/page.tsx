@@ -156,25 +156,25 @@ export default function ProfileEditPage() {
             setError(null)
             setSuccessMessage(null)
 
-            // 准备数据（转换数字字段）
+            // ✅ 修复: 将空字符串转换为 null,避免验证错误
             const payload: any = {
-                displayName: formData.displayName || null,
-                bio: formData.bio || null,
-                country: formData.country || null,
-                city: formData.city || null,
-                location: formData.location || null,
-                currentSchool: formData.currentSchool || null,
-                major: formData.major || null,
-                degree: formData.degree || null,
+                displayName: formData.displayName.trim() || null,  // ← 改这里
+                bio: formData.bio.trim() || null,                  // ← 改这里
+                country: formData.country.trim() || null,
+                city: formData.city.trim() || null,
+                location: formData.location.trim() || null,
+                currentSchool: formData.currentSchool.trim() || null,
+                major: formData.major.trim() || null,
+                degree: formData.degree.trim() || null,
                 enrollmentYear: formData.enrollmentYear ? parseInt(formData.enrollmentYear) : null,
                 expectedGradYear: formData.expectedGradYear ? parseInt(formData.expectedGradYear) : null,
                 latitude: formData.latitude ? parseFloat(formData.latitude) : null,
                 longitude: formData.longitude ? parseFloat(formData.longitude) : null,
-                wechat: formData.wechat || null,
-                linkedin: formData.linkedin || null,
-                instagram: formData.instagram || null,
-                github: formData.github || null,
-                personalWebsite: formData.personalWebsite || null,
+                wechat: formData.wechat.trim() || null,
+                linkedin: formData.linkedin.trim() || null,
+                instagram: formData.instagram.trim() || null,
+                github: formData.github.trim() || null,
+                personalWebsite: formData.personalWebsite.trim() || null,  // ← 重要!
             }
 
             const response = await fetch('/api/user/profile', {
@@ -193,8 +193,6 @@ export default function ProfileEditPage() {
             }
 
             setSuccessMessage('✅ 资料保存成功！')
-
-            // 3秒后清除成功消息
             setTimeout(() => setSuccessMessage(null), 3000)
 
         } catch (err) {

@@ -57,7 +57,7 @@ qdez-react/
 │   ├── components/
 │   │   ├── Navigation.tsx      # 导航栏
 │   │   ├── HomePage.tsx        # 首页
-│   │   ├── ForumPage.tsx       # 论坛
+│   │   ├── Page.tsx       # 论坛
 │   │   ├── QAPage.tsx          # 问答
 │   │   ├── ResourcesPage.tsx   # 资源
 │   │   ├── EventsPage.tsx      # 活动

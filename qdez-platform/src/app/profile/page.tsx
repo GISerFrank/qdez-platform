@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
+import Link from 'next/link'
 import { achievementsData } from '@/lib/mockData'
 
 // 定义API返回的用户数据类型
@@ -230,7 +231,9 @@ export default function ProfilePage() {
             </div>
 
             <div className="mt-6">
-              <button className="pixel-btn w-full mb-3">编辑资料</button>
+              <Link href="/profile/edit" className="pixel-btn w-full mb-3 block text-center">
+                编辑资料
+              </Link>
               <button className="pixel-btn pixel-btn-secondary w-full">查看成就</button>
             </div>
           </div>

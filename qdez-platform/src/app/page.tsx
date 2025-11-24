@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Navigation from './campus/Navigation'
 import HomePage from './campus/HomePage'
-import ForumPage from './campus/ForumPage'
+import ForumPage from './forum/page'
 import QAPage from './campus/QAPage'
 import ResourcesPage from './campus/ResourcesPage'
 import EventsPage from './campus/EventsPage'
