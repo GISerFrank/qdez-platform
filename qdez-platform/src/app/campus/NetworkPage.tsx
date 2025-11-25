@@ -1,9 +1,11 @@
+// src/app/campus/NetworkPage.tsx
+// 更新版：支持三种关联类型（同专业、同校、同城）+ API数据
+
 'use client'
 
-// 导入 useRef，我们将用它来获取图表实例
-import { useState, useMemo, useCallback, useRef } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import dynamic from 'next/dynamic'
-import { alumniData, disciplines } from '@/lib/mockData'
+import { GraphNode, GraphLink, RelationType, NODE_TYPE_COLORS } from '@/types/network'
 
 // 动态导入 ForceGraph（避免 SSR 问题）
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
@@ -31,135 +33,279 @@ const MapComponent = dynamic(() => import('@/components/MapComponent'), {
   )
 })
 
-export default function NetworkPage() {
-  const [highlightNodes, setHighlightNodes] = useState(new Set())
-  const [highlightLinks, setHighlightLinks] = useState(new Set())
-  const [selectedNode, setSelectedNode] = useState<any>(null)
+// 关联类型配置
+const RELATION_TYPE_CONFIG: Record<RelationType, { label: string, icon: string, color: string }> = {
+  all: { label: '全部', icon: '🌐', color: '#6B7280' },
+  major: { label: '同专业', icon: '📚', color: '#4F46E5' },
+  school: { label: '同校', icon: '🎓', color: '#10B981' },
+  city: { label: '同城', icon: '📍', color: '#F59E0B' },
+}
 
-  // 【新增】创建 Ref 来访问 ForceGraph2D 的方法 (例如 zoomToFit)
+// 校友详情Modal组件
+function AlumniDetailModal({
+                             alumniId,
+                             onClose
+                           }: {
+  alumniId: string | null
+  onClose: () => void
+}) {
+  const [detail, setDetail] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!alumniId) {
+      setDetail(null)
+      return
+    }
+
+    const fetchDetail = async () => {
+      setLoading(true)
+      try {
+        const response = await fetch(`/api/network/alumni/${alumniId}`)
+        const data = await response.json()
+        if (data.success) {
+          setDetail(data.data.user)
+        }
+      } catch (err) {
+        console.error('Fetch alumni detail error:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchDetail()
+  }, [alumniId])
+
+  if (!alumniId) return null
+
+  return (
+      <div
+          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+          onClick={onClose}
+      >
+        <div
+            className="bg-[#2a2a4a] border-4 border-[#4F46E5] p-6 max-w-md w-full shadow-[8px_8px_0_rgba(0,0,0,0.5)]"
+            onClick={e => e.stopPropagation()}
+        >
+          {loading ? (
+              <div className="text-center text-yellow-300 py-8">
+                <div className="mb-2">⏳ 加载中...</div>
+              </div>
+          ) : detail ? (
+              <>
+                <div className="flex items-center gap-4 mb-4">
+                  {detail.avatar && (
+                      <img
+                          src={detail.avatar}
+                          alt={detail.name}
+                          className="w-16 h-16 rounded border-2 border-[#4F46E5]"
+                      />
+                  )}
+                  <div>
+                    <h3 className="text-lg text-yellow-300">{detail.displayName || detail.name}</h3>
+                    <p className="text-xs text-gray-400">
+                      二中 {detail.qdezClass} · {detail.qdezEnrollmentYear}级
+                    </p>
+                  </div>
+                </div>
+
+                {detail.bio && (
+                    <p className="text-xs text-gray-300 mb-4 border-l-2 border-[#4F46E5] pl-3">
+                      {detail.bio}
+                    </p>
+                )}
+
+                {detail.education && (
+                    <div className="mb-4">
+                      <h4 className="text-xs text-yellow-300 mb-2">🎓 教育背景</h4>
+                      <div className="text-xs text-gray-300 space-y-1">
+                        {detail.education.school && <div>学校: {detail.education.school}</div>}
+                        {detail.education.major && <div>专业: {detail.education.major}</div>}
+                        {detail.education.degree && <div>学位: {detail.education.degree}</div>}
+                      </div>
+                    </div>
+                )}
+
+                {detail.location && (
+                    <div className="mb-4">
+                      <h4 className="text-xs text-yellow-300 mb-2">📍 位置</h4>
+                      <div className="text-xs text-gray-300">
+                        {[detail.location.city, detail.location.country].filter(Boolean).join(', ')}
+                      </div>
+                    </div>
+                )}
+
+                {detail.contact && (
+                    <div className="mb-4">
+                      <h4 className="text-xs text-yellow-300 mb-2">📞 联系方式</h4>
+                      <div className="text-xs text-gray-300 space-y-1">
+                        {detail.contact.wechat && <div>微信: {detail.contact.wechat}</div>}
+                        {detail.contact.linkedin && (
+                            <a href={detail.contact.linkedin} target="_blank" className="text-cyan-300 hover:underline block">
+                              LinkedIn →
+                            </a>
+                        )}
+                        {detail.contact.github && (
+                            <a href={detail.contact.github} target="_blank" className="text-cyan-300 hover:underline block">
+                              GitHub →
+                            </a>
+                        )}
+                      </div>
+                    </div>
+                )}
+
+                <div className="text-xs text-gray-500 border-t border-gray-600 pt-3 mt-4">
+                  <div className="flex gap-4">
+                    <span>📝 帖子 {detail.stats.posts}</span>
+                    <span>💬 评论 {detail.stats.comments}</span>
+                    <span>❓ 提问 {detail.stats.questions}</span>
+                    <span>✅ 回答 {detail.stats.answers}</span>
+                  </div>
+                </div>
+
+                <button
+                    onClick={onClose}
+                    className="mt-4 w-full py-2 bg-[#4F46E5] text-white text-xs hover:bg-[#4338CA] transition-colors"
+                >
+                  关闭
+                </button>
+              </>
+          ) : (
+              <div className="text-center text-red-400 py-8">
+                <div>加载失败</div>
+              </div>
+          )}
+        </div>
+      </div>
+  )
+}
+
+export default function NetworkPage() {
+  // 状态
+  const [relationType, setRelationType] = useState<RelationType>('all')
+  const [graphData, setGraphData] = useState<{ nodes: GraphNode[], links: GraphLink[] }>({ nodes: [], links: [] })
+  const [graphLoading, setGraphLoading] = useState(true)
+  const [graphError, setGraphError] = useState<string | null>(null)
+  const [graphStats, setGraphStats] = useState<any>(null)
+  const [highlightNodes, setHighlightNodes] = useState(new Set<string>())
+  const [highlightLinks, setHighlightLinks] = useState(new Set<any>())
+  const [selectedAlumniId, setSelectedAlumniId] = useState<string | null>(null)
+
+  // ForceGraph ref
   const fgRef = useRef<any>()
 
-  // 准备网络图数据 (无变化)
-  const graphData = useMemo(() => {
-    // 收集所有专业
-    const allMajors = new Set<string>()
-    alumniData.forEach(alumnus => {
-      alumnus.majors.forEach(major => allMajors.add(major))
-    })
+  // 筛选器状态
+  const [filters, setFilters] = useState<{
+    country?: string
+    city?: string
+    school?: string
+    major?: string
+  }>({})
 
-    // 创建节点
-    const nodes = Array.from(allMajors).map(major => ({
-      id: major,
-      name: major,
-      count: alumniData.filter(a => a.majors.includes(major)).length,
-      category: disciplines[major]?.category || '其他',
-      color: getCategoryColor(disciplines[major]?.category || '其他')
-    }))
+  // 获取关系网络数据
+  useEffect(() => {
+    const fetchGraphData = async () => {
+      setGraphLoading(true)
+      setGraphError(null)
 
-    // 创建连接
-    const links: any[] = []
-    const linkMap = new Map<string, any>()
+      try {
+        const response = await fetch(`/api/network/graph?type=${relationType}`)
+        const data = await response.json()
 
-    alumniData.forEach(alumnus => {
-      if (alumnus.majors.length > 1) {
-        for (let i = 0; i < alumnus.majors.length; i++) {
-          for (let j = i + 1; j < alumnus.majors.length; j++) {
-            const [source, target] = [alumnus.majors[i], alumnus.majors[j]].sort()
-            const linkId = `${source}-${target}`
-
-            if (linkMap.has(linkId)) {
-              linkMap.get(linkId).value++
-            } else {
-              const link = { source, target, value: 1 }
-              linkMap.set(linkId, link)
-              links.push(link)
-            }
-          }
+        if (data.success) {
+          setGraphData({
+            nodes: data.data.nodes,
+            links: data.data.links,
+          })
+          setGraphStats(data.data.stats)
+        } else {
+          setGraphError(data.error || '获取数据失败')
         }
+      } catch (err) {
+        console.error('Fetch graph data error:', err)
+        setGraphError('网络错误，请稍后重试')
+      } finally {
+        setGraphLoading(false)
       }
-    })
-
-    console.log('📊 网络图数据:', {
-      nodes: nodes.length,
-      links: links.length,
-      nodesData: nodes,
-      linksData: links
-    })
-
-    return { nodes, links }
-  }, [])
-
-  // 获取分类颜色 (无变化)
-  function getCategoryColor(category: string): string {
-    const colorMap: Record<string, string> = {
-      'STEM': '#4F46E5',
-      '商科': '#EC4899',
-      '其他': '#10B981'
     }
-    return colorMap[category] || '#06B6D4'
-  }
 
-  // 处理节点点击 (无变化)
-  const handleNodeClick = useCallback((node: any) => {
-    setSelectedNode(node)
+    fetchGraphData()
+  }, [relationType])
 
-    // 高亮相关节点和连接
-    const connectedNodes = new Set([node.id])
-    const connectedLinks = new Set()
+  // 高亮相关节点和连线
+  const handleNodeHover = useCallback((node: any) => {
+    if (!node) {
+      setHighlightNodes(new Set())
+      setHighlightLinks(new Set())
+      return
+    }
 
-    graphData.links.forEach((link: any) => {
-      if (link.source.id === node.id || link.target.id === node.id) {
-        connectedLinks.add(link)
-        connectedNodes.add(link.source.id === node.id ? link.target.id : link.source.id)
+    const neighbors = new Set<string>()
+    const links = new Set<any>()
+
+    neighbors.add(node.id)
+
+    graphData.links.forEach(link => {
+      const sourceId = typeof link.source === 'object' ? link.source.id : link.source
+      const targetId = typeof link.target === 'object' ? link.target.id : link.target
+
+      if (sourceId === node.id) {
+        neighbors.add(targetId)
+        links.add(link)
+      } else if (targetId === node.id) {
+        neighbors.add(sourceId)
+        links.add(link)
       }
     })
 
-    setHighlightNodes(connectedNodes)
-    setHighlightLinks(connectedLinks)
+    setHighlightNodes(neighbors)
+    setHighlightLinks(links)
   }, [graphData.links])
 
-  // 处理背景点击（清除高亮）(无变化)
-  const handleBackgroundClick = useCallback(() => {
-    setHighlightNodes(new Set())
-    setHighlightLinks(new Set())
-    setSelectedNode(null)
+  // 节点点击
+  const handleNodeClick = useCallback((node: any) => {
+    if (fgRef.current) {
+      fgRef.current.centerAt(node.x, node.y, 500)
+      fgRef.current.zoom(2, 500)
+    }
   }, [])
 
-  // 【新增】自定义节点绘制函数
+  // 自定义节点绘制
   const handleNodeCanvasObject = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-    const label = node.name;
-    const R = 6; // 必须与下面的 nodeRelSize 保持一致
-    // 根据节点 count 计算半径 (与物理引擎一致)
-    const radius = R * Math.sqrt(node.count);
+    const label = node.name
+    const radius = 5 + Math.sqrt(node.count || 1) * 2
 
-    // 1. 绘制主圆圈
-    ctx.beginPath();
-    ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
-    ctx.fillStyle = node.color || 'grey';
-    ctx.fill();
+    // 绘制圆圈
+    ctx.beginPath()
+    ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false)
+    ctx.fillStyle = node.color || '#6B7280'
+    ctx.fill()
 
-    // 2. 绘制边框 (高亮或默认)
-    const isHighlighted = highlightNodes.has(node.id);
-    // 使用应用主题中的亮黄色 (text-yellow-300)
-    ctx.strokeStyle = isHighlighted ? '#fde047' : 'rgba(255, 255, 255, 0.3)';
-    ctx.lineWidth = isHighlighted ? (2 / globalScale) : (1 / globalScale);
-    ctx.stroke();
+    // 边框
+    const isHighlighted = highlightNodes.has(node.id)
+    ctx.strokeStyle = isHighlighted ? '#fde047' : 'rgba(255, 255, 255, 0.3)'
+    ctx.lineWidth = isHighlighted ? (2 / globalScale) : (1 / globalScale)
+    ctx.stroke()
 
-    // 3. 绘制文本 (当缩放级别足够大时)
-    const fontSize = 10 / globalScale; // 10px 基础字体
-    if (fontSize > 5) { // 字体大于5px时才显示
-      // 确保使用像素艺术字体，并取整防止模糊
-      ctx.font = `${Math.round(fontSize)}px 'Press Start 2P', monospace`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#FFFFFF'; // 白色文字
-      ctx.fillText(label, node.x, node.y);
+    // 文字
+    const fontSize = 10 / globalScale
+    if (fontSize > 4) {
+      ctx.font = `${Math.round(fontSize)}px 'Press Start 2P', monospace`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillStyle = '#FFFFFF'
+      ctx.fillText(label, node.x, node.y - radius - fontSize)
     }
-  }, [highlightNodes]); // 依赖 highlightNodes 状态
+  }, [highlightNodes])
+
+  // 校友点击处理
+  const handleAlumniClick = useCallback((alumniId: string) => {
+    setSelectedAlumniId(alumniId)
+  }, [])
 
   return (
       <div className="container mx-auto px-4 py-16">
-        {/* 地图部分 (无变化) */}
+        {/* 地图部分 */}
         <h2 className="text-2xl mb-8 text-center">
           <span className="text-yellow-300">▸</span> 校友网络地图
           <span className="text-yellow-300">◂</span>
@@ -169,103 +315,146 @@ export default function NetworkPage() {
             className="mb-16 border-4 border-[#4F46E5] shadow-[8px_8px_0_rgba(0,0,0,0.5)] overflow-hidden relative"
             style={{ height: '600px' }}
         >
-          <MapComponent />
+          <MapComponent
+              filters={filters}
+              onAlumniClick={handleAlumniClick}
+          />
         </div>
 
-        {/* 网络图部分 */}
-        <h2 className="text-2xl mb-8 text-center mt-16">
-          <span className="text-yellow-300">▸</span> 专业关系网络
+        {/* 关系网络图部分 */}
+        <h2 className="text-2xl mb-4 text-center mt-16">
+          <span className="text-yellow-300">▸</span> 校友关系网络
           <span className="text-yellow-300">◂</span>
         </h2>
 
+        {/* 关联类型切换按钮 */}
+        <div className="flex justify-center gap-2 mb-6 flex-wrap">
+          {(Object.keys(RELATION_TYPE_CONFIG) as RelationType[]).map(type => {
+            const config = RELATION_TYPE_CONFIG[type]
+            const isActive = relationType === type
+            return (
+                <button
+                    key={type}
+                    onClick={() => setRelationType(type)}
+                    className={`
+                px-4 py-2 text-xs transition-all duration-200
+                border-2 shadow-[4px_4px_0_rgba(0,0,0,0.5)]
+                ${isActive
+                        ? 'bg-[#4F46E5] border-[#4F46E5] text-white'
+                        : 'bg-transparent border-gray-600 text-gray-300 hover:border-[#4F46E5]'
+                    }
+              `}
+                    style={{
+                      borderColor: isActive ? config.color : undefined,
+                      backgroundColor: isActive ? config.color : undefined,
+                    }}
+                >
+                  {config.icon} {config.label}
+                </button>
+            )
+          })}
+        </div>
+
+        {/* 统计信息 */}
+        {graphStats && (
+            <div className="flex justify-center gap-6 mb-6 text-xs text-gray-400">
+              <span>👥 {graphStats.totalUsers} 位校友</span>
+              <span>📚 {graphStats.totalMajors} 个专业</span>
+              <span>🎓 {graphStats.totalSchools} 所学校</span>
+              <span>📍 {graphStats.totalCities} 个城市</span>
+            </div>
+        )}
+
+        {/* 图例 */}
+        <div className="flex justify-center gap-4 mb-6 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: NODE_TYPE_COLORS.major }}></span>
+            <span className="text-gray-400">专业</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: NODE_TYPE_COLORS.school }}></span>
+            <span className="text-gray-400">学校</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: NODE_TYPE_COLORS.city }}></span>
+            <span className="text-gray-400">城市</span>
+          </div>
+        </div>
+
+        {/* 网络图容器 */}
         <div
             className="relative w-full bg-[#1a1a35] border-4 border-[#4F46E5] shadow-[8px_8px_0_rgba(0,0,0,0.5)] overflow-hidden"
             style={{ height: '600px' }}
         >
-          <ForceGraph2D
-              // 【修改】添加 ref
-              ref={fgRef}
-              graphData={graphData}
-              nodeId="id"
-              nodeLabel="name" // 保留这个，它用于鼠标悬停时的原生 tooltip
-              nodeVal={(node: any) => node.count}
-              nodeColor={(node: any) => node.color}
-              nodeRelSize={6} // 保持这个值，用于物理碰撞和半径计算
-
-              // 【新增】使用自定义的节点绘制函数
-              nodeCanvasObject={handleNodeCanvasObject}
-
-              linkColor={(link: any) => {
-                const isHighlighted = highlightLinks.size === 0 || highlightLinks.has(link)
-                return isHighlighted ? '#4F46E5' : 'rgba(79, 70, 229, 0.1)'
-              }}
-              linkWidth={(link: any) => {
-                const isHighlighted = highlightLinks.size === 0 || highlightLinks.has(link)
-                return isHighlighted ? 2 : 1
-              }}
-              onNodeClick={handleNodeClick}
-              onBackgroundClick={handleBackgroundClick}
-              backgroundColor="#1a1a35"
-              enableZoomInteraction={true}
-              enablePanInteraction={true}
-              enableNodeDrag={true}
-
-              // 【修改】优化物理引擎参数
-              cooldownTime={1500} // 减少稳定时间
-              warmupTicks={200}  // 增加预热计算
-
-              d3AlphaDecay={0.02}
-              d3VelocityDecay={0.3}
-              width={undefined}
-              height={600}
-
-              // 【新增】当引擎停止时，自动缩放到合适视图
-              onEngineStop={() => {
-                if (fgRef.current) {
-                  fgRef.current.zoomToFit(
-                      400, // 400ms 动画时间
-                      40   // 40px 内边距
-                  );
-                }
-              }}
-          />
-
-          {/* 节点信息面板 (无变化) */}
-          {selectedNode && (
-              <div className="absolute top-4 right-4 bg-[#2a2a4a] border-3 border-[#4F46E5] p-4 rounded shadow-lg max-w-xs z-10">
-                <h3 className="text-sm font-bold text-yellow-300 mb-2">{selectedNode.name}</h3>
-                <p className="text-xs text-gray-300 mb-1">分类: {selectedNode.category}</p>
-                <p className="text-xs text-gray-300 mb-2">校友数量: {selectedNode.count} 人</p>
-                <button
-                    className="text-xs px-2 py-1 bg-[#4F46E5] text-white rounded hover:bg-[#4338CA]"
-                    onClick={handleBackgroundClick}
-                >
-                  关闭
-                </button>
+          {graphLoading ? (
+              <div className="absolute inset-0 flex items-center justify-center text-yellow-300 text-xs">
+                <div className="text-center">
+                  <div className="mb-2">⏳ 加载关系网络数据...</div>
+                  <div className="text-xs opacity-70">请稍候</div>
+                </div>
               </div>
+          ) : graphError ? (
+              <div className="absolute inset-0 flex items-center justify-center text-red-400 text-xs">
+                <div className="text-center">
+                  <div className="mb-2">❌ {graphError}</div>
+                  <button
+                      className="text-yellow-300 underline"
+                      onClick={() => setRelationType(relationType)}
+                  >
+                    点击重试
+                  </button>
+                </div>
+              </div>
+          ) : graphData.nodes.length === 0 ? (
+              <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-xs">
+                <div className="text-center">
+                  <div className="mb-2">🔗 暂无关系数据</div>
+                  <div className="text-xs opacity-70">完善个人资料后会显示关系网络</div>
+                </div>
+              </div>
+          ) : (
+              <ForceGraph2D
+                  ref={fgRef}
+                  graphData={graphData}
+                  nodeId="id"
+                  nodeLabel="name"
+                  nodeVal={(node: any) => node.count || 1}
+                  nodeColor={(node: any) => node.color}
+                  nodeRelSize={6}
+                  nodeCanvasObject={handleNodeCanvasObject}
+                  onNodeHover={handleNodeHover}
+                  onNodeClick={handleNodeClick}
+                  linkColor={(link: any) => {
+                    const isHighlighted = highlightLinks.size === 0 || highlightLinks.has(link)
+                    return isHighlighted ? 'rgba(79, 70, 229, 0.6)' : 'rgba(79, 70, 229, 0.1)'
+                  }}
+                  linkWidth={(link: any) => {
+                    const isHighlighted = highlightLinks.size === 0 || highlightLinks.has(link)
+                    return isHighlighted ? Math.sqrt(link.value || 1) : 0.5
+                  }}
+                  linkDirectionalParticles={2}
+                  linkDirectionalParticleWidth={(link: any) => highlightLinks.has(link) ? 2 : 0}
+                  d3AlphaDecay={0.02}
+                  d3VelocityDecay={0.3}
+                  warmupTicks={100}
+                  cooldownTicks={200}
+                  enableNodeDrag={true}
+                  enableZoomInteraction={true}
+                  enablePanInteraction={true}
+              />
           )}
         </div>
 
-        {/* 图例 (无变化) */}
-        <div className="mt-8 flex flex-wrap justify-center gap-4 text-xs">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded-full bg-[#4F46E5]"></div>
-            <span>STEM</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded-full bg-[#EC4899]"></div>
-            <span>商科</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded-full bg-[#10B981]"></div>
-            <span>其他</span>
-          </div>
+        {/* 操作提示 */}
+        <div className="text-center mt-4 text-xs text-gray-500">
+          💡 提示：滚轮缩放 | 拖动平移 | 悬停查看详情 | 点击节点居中
         </div>
 
-        <div className="mt-4 text-center text-xs text-gray-400">
-          <p>💡 提示: 地图可以用鼠标拖动平移和缩放 | 网络图可以拖拽节点，点击节点高亮相关连接</p>
-          <p className="mt-2">🖱️ 拖动地图：按住鼠标左键拖动 | 📱 触摸设备：用手指滑动</p>
-        </div>
+        {/* 校友详情Modal */}
+        <AlumniDetailModal
+            alumniId={selectedAlumniId}
+            onClose={() => setSelectedAlumniId(null)}
+        />
       </div>
   )
 }
