@@ -14,7 +14,7 @@ export default withAuth(
   function middleware(req) {
     // 已登录用户访问登录页，重定向到主平台
     if (req.nextUrl.pathname === "/login" && req.nextauth.token) {
-      return NextResponse.redirect(new URL("/campus", req.url));
+      return NextResponse.redirect(new URL("/", req.url));
     }
     
     return NextResponse.next();

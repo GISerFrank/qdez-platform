@@ -18,7 +18,7 @@ import { idParamSchema, voteSchema } from '@/lib/qa/validation'
  */
 export async function POST(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    context: { params: Promise<{ id: string }> }  // ✅ 改这里
 ) {
     try {
         // 1. 验证用户登录
@@ -37,6 +37,7 @@ export async function POST(
         const currentUserId = session.user.id
 
         // 2. 验证答案ID
+        const params = await context.params  // ✅ 加这行
         const paramResult = idParamSchema.safeParse(params)
 
         if (!paramResult.success) {

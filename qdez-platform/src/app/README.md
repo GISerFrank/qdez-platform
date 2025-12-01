@@ -61,7 +61,7 @@ qdez-react/
 │   │   ├── QAPage.tsx          # 问答
 │   │   ├── ResourcesPage.tsx   # 资源
 │   │   ├── EventsPage.tsx      # 活动
-│   │   ├── NetworkPage.tsx     # 网络（地图+关系图）
+│   │   ├── page.tsx     # 网络（地图+关系图）
 │   │   ├── page.tsx     # 个人中心
 │   │   └── Footer.tsx          # 页脚
 │   └── lib/

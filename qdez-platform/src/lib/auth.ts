@@ -127,6 +127,11 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
+
+    async redirect({ url, baseUrl }) {
+      // 登录后重定向到首页而不是 /campus
+      return baseUrl;  // 即 "/"
+    },
   },
 
   pages: {

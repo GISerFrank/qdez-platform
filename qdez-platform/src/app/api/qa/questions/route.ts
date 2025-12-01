@@ -1,21 +1,33 @@
 // src/app/api/qa/questions/route.ts
-// 帖子列表和创建 API
+// 问题列表和创建 API - 修复TypeScript错误
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import prisma from '@/lib/prisma'
-import { createQuestionSchema, questionListQuerySchema } from '@/lib/qa/validation'
 import {
-  calculateOffset,
-  generatePaginationMeta,
-  getSortOrderBy,
-  getAuthorSelect,
-} from '@/lib/forum/utils'
+  createQuestionSchema,
+  questionListQuerySchema,
+} from '@/lib/qa/validation'
+import { calculateOffset, generatePaginationMeta } from '@/lib/forum/utils'
+import { Prisma } from '@prisma/client'
+
+// 获取作者信息的选择字段
+function getAuthorSelect() {
+  return {
+    id: true,
+    username: true,
+    name: true,
+    displayName: true,
+    avatarUrl: true,
+    currentSchool: true,
+    major: true,
+  }
+}
 
 /**
- * GET /api/forum/posts
- * 获取帖子列表
+ * GET /api/qa/questions
+ * 获取问题列表
  */
 export async function GET(request: NextRequest) {
   try {
@@ -26,25 +38,26 @@ export async function GET(request: NextRequest) {
       limit: searchParams.get('limit') || '20',
       category: searchParams.get('category') || undefined,
       sort: searchParams.get('sort') || 'latest',
+      solved: searchParams.get('solved') || undefined,
       tag: searchParams.get('tag') || undefined,
     })
 
     if (!queryResult.success) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid query parameters',
-          details: queryResult.error.errors,
-        },
-        { status: 400 }
+          {
+            success: false,
+            error: 'Invalid query parameters',
+            details: queryResult.error.errors,
+          },
+          { status: 400 }
       )
     }
 
-    const { page, limit, category, sort, tag } = queryResult.data
+    const { page, limit, category, sort, solved, tag } = queryResult.data
 
-    // 2. 构建查询条件
-    const where: any = {
-      status: 'PUBLISHED', // 只显示已发布的帖子
+    // 2. 构建查询条件 - 使用正确的Prisma类型
+    const where: Prisma.QuestionWhereInput = {
+      status: 'PUBLISHED',
     }
 
     if (category) {
@@ -61,29 +74,55 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 3. 查询总数
-    const total = await prisma.post.count({ where })
+    if (typeof solved === 'boolean') {
+      where.solved = solved
+    }
 
-    // 4. 查询帖子列表
-    const questions = await prisma.post.findMany({
+    // 3. 查询问题总数
+    const total = await prisma.question.count({ where })
+
+    // 4. 构建排序条件 - 使用正确的类型
+    let orderBy: Prisma.QuestionOrderByWithRelationInput[] | Prisma.QuestionOrderByWithRelationInput
+
+    if (sort === 'unanswered') {
+      // 未解决的问题优先（答案数少的在前）
+      orderBy = [
+        { createdAt: 'desc' }, // 简化排序，避免复杂的_count排序
+      ]
+    } else if (sort === 'mostAnswered') {
+      // 回答数最多的在前
+      orderBy = [
+        { createdAt: 'desc' },
+      ]
+    } else if (sort === 'hot') {
+      // 热门：浏览量排序
+      orderBy = [
+        { views: 'desc' },
+        { createdAt: 'desc' },
+      ]
+    } else {
+      // latest: 最新的在前（默认）
+      orderBy = { createdAt: 'desc' }
+    }
+
+    // 5. 查询问题列表
+    const questions = await prisma.question.findMany({
       where,
       select: {
         id: true,
         title: true,
         content: true,
         category: true,
-        authorId: true,
-        author: {
-          select: getAuthorSelect(),
-        },
-        viewCount: true,
-        likeCount: true,
-        commentCount: true,
-        isPinned: true,
-        isFeatured: true,
+        solved: true,
+        acceptedAnswerId: true,
+        views: true,
+        likeCount: true, // 直接使用字段而不是_count
         status: true,
         createdAt: true,
         updatedAt: true,
+        author: {
+          select: getAuthorSelect(),
+        },
         tags: {
           select: {
             tag: {
@@ -93,49 +132,61 @@ export async function GET(request: NextRequest) {
             },
           },
         },
+        _count: {
+          select: {
+            answers: true,
+          },
+        },
       },
-      orderBy: [
-        { isPinned: 'desc' }, // 置顶帖子优先
-        getSortOrderBy(sort),
-      ],
+      orderBy,
       skip: calculateOffset(page, limit),
       take: limit,
     })
 
-    // 5. 格式化数据
-    const formattedPosts = questions.map(post => ({
-      ...post,
-      tags: post.tags.map(t => t.tag.name),
-      createdAt: post.createdAt.toISOString(),
-      updatedAt: post.updatedAt.toISOString(),
+    // 6. 格式化数据
+    const formattedQuestions = questions.map(question => ({
+      id: question.id,
+      title: question.title,
+      content: question.content.substring(0, 200), // 列表页只返回摘要
+      category: question.category,
+      solved: question.solved,
+      acceptedAnswerId: question.acceptedAnswerId,
+      views: question.views,
+      likeCount: question.likeCount,
+      answerCount: question._count.answers,
+      status: question.status,
+      createdAt: question.createdAt.toISOString(),
+      updatedAt: question.updatedAt.toISOString(),
+      author: question.author,
+      tags: question.tags.map(t => t.tag.name),
     }))
 
-    // 6. 生成分页元数据
+    // 7. 生成分页元数据
     const paginationMeta = generatePaginationMeta(total, page, limit)
 
-    // 7. 返回响应
+    // 8. 返回响应
     return NextResponse.json({
       success: true,
       data: {
-        posts: formattedPosts,
+        questions: formattedQuestions,
         ...paginationMeta,
       },
     })
   } catch (error) {
-    console.error('Get posts error:', error)
+    console.error('Get questions error:', error)
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Internal server error',
-      },
-      { status: 500 }
+        {
+          success: false,
+          error: 'Internal server error',
+        },
+        { status: 500 }
     )
   }
 }
 
 /**
- * POST /api/forum/posts
- * 创建新帖子
+ * POST /api/qa/questions
+ * 创建新问题
  */
 export async function POST(request: NextRequest) {
   try {
@@ -144,11 +195,11 @@ export async function POST(request: NextRequest) {
 
     if (!session?.user?.id) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Unauthorized',
-        },
-        { status: 401 }
+          {
+            success: false,
+            error: 'Unauthorized',
+          },
+          { status: 401 }
       )
     }
 
@@ -160,27 +211,29 @@ export async function POST(request: NextRequest) {
 
     if (!validationResult.success) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Validation failed',
-          details: validationResult.error.errors,
-        },
-        { status: 400 }
+          {
+            success: false,
+            error: 'Validation failed',
+            details: validationResult.error.errors,
+          },
+          { status: 400 }
       )
     }
 
     const { title, content, category, tags = [] } = validationResult.data
 
-    // 4. 使用事务创建帖子和标签
-    const post = await prisma.$transaction(async (tx) => {
-      // 4.1 创建帖子
-      const newPost = await tx.post.create({
+    // 4. 使用事务创建问题和标签
+    const question = await prisma.$transaction(async (tx) => {
+      // 4.1 创建问题
+      const newQuestion = await tx.question.create({
         data: {
           title,
           content,
           category,
           authorId: session.user.id,
           status: 'PUBLISHED',
+          solved: false,
+          likeCount: 0, // 初始化字段
         },
         include: {
           author: {
@@ -195,110 +248,73 @@ export async function POST(request: NextRequest) {
           // 查找或创建标签
           const tag = await tx.tag.upsert({
             where: { name: tagName },
-            update: {
-              useCount: {
-                increment: 1,
-              },
-            },
+            update: {},
             create: {
               name: tagName,
-              useCount: 1,
+              slug: tagName.toLowerCase().replace(/\s+/g, '-'),
             },
           })
 
-          // 关联标签到帖子
-          await tx.postTag.create({
+          // 关联标签到问题
+          await tx.questionTag.create({
             data: {
-              postId: newPost.id,
+              questionId: newQuestion.id,
               tagId: tag.id,
             },
           })
         }
       }
 
-      // 4.3 增加用户积分（发帖奖励）
+      // 4.3 增加用户积分（提问奖励）
       await tx.user.update({
         where: { id: session.user.id },
         data: {
           points: {
-            increment: 5, // 发帖奖励5积分
+            increment: 5,
           },
         },
       })
 
-      return newPost
+      return newQuestion
     })
 
-    // 5. 重新查询完整数据（包含标签）
-    const fullPost = await prisma.post.findUnique({
-      where: { id: post.id },
-      select: {
-        id: true,
-        title: true,
-        content: true,
-        category: true,
-        authorId: true,
-        author: {
-          select: getAuthorSelect(),
-        },
-        viewCount: true,
-        likeCount: true,
-        commentCount: true,
-        isPinned: true,
-        isFeatured: true,
-        status: true,
-        createdAt: true,
-        updatedAt: true,
-        tags: {
-          select: {
-            tag: {
-              select: {
-                name: true,
-              },
-            },
+    // 5. 格式化响应数据
+    const formattedQuestion = {
+      id: question.id,
+      title: question.title,
+      content: question.content,
+      category: question.category,
+      authorId: question.authorId,
+      author: question.author,
+      solved: question.solved,
+      acceptedAnswerId: question.acceptedAnswerId,
+      views: question.views,
+      likeCount: question.likeCount,
+      answerCount: 0,
+      status: question.status,
+      createdAt: question.createdAt.toISOString(),
+      updatedAt: question.updatedAt.toISOString(),
+      tags,
+    }
+
+    // 6. 返回响应
+    return NextResponse.json(
+        {
+          success: true,
+          data: {
+            question: formattedQuestion,
           },
         },
-      },
-    })
-
-    // 6. 格式化数据
-    const formattedPost = {
-      ...fullPost,
-      tags: fullPost!.tags.map(t => t.tag.name),
-      createdAt: fullPost!.createdAt.toISOString(),
-      updatedAt: fullPost!.updatedAt.toISOString(),
-    }
-
-    // 7. 返回响应
-    return NextResponse.json(
-      {
-        success: true,
-        data: {
-          post: formattedPost,
-        },
-      },
-      { status: 201 }
+        { status: 201 }
     )
   } catch (error) {
-    console.error('Create post error:', error)
-
-    // Prisma 错误处理
-    if (error instanceof Error && error.message.includes('Foreign key constraint')) {
-      return NextResponse.json(
+    console.error('Create question error:', error)
+    return NextResponse.json(
         {
           success: false,
-          error: 'Invalid category or user',
+          error: 'Internal server error',
         },
-        { status: 400 }
-      )
-    }
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Internal server error',
-      },
-      { status: 500 }
+        { status: 500 }
     )
   }
 }

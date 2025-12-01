@@ -205,6 +205,7 @@ export async function POST(request: NextRequest) {
             },
             create: {
               name: tagName,
+              slug: tagName.toLowerCase().replace(/\s+/g, '-'),
               useCount: 1,
             },
           })

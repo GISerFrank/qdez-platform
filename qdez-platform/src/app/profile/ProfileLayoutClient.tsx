@@ -5,11 +5,11 @@ import { useRouter } from 'next/navigation'
 import Navigation from '../campus/Navigation'
 import Footer from '../campus/Footer'
 
-interface ForumLayoutClientProps {
+interface ProfileLayoutClientProps {
   children: ReactNode
 }
 
-export default function ForumLayoutClient({ children }: ForumLayoutClientProps) {
+export default function ProfileLayoutClient({ children }: ProfileLayoutClientProps) {
   const router = useRouter()
   const [userInfo, setUserInfo] = useState<any>(null)
 
@@ -43,15 +43,11 @@ export default function ForumLayoutClient({ children }: ForumLayoutClientProps) 
         // 跳转到主页
         router.push('/')
         break
-      case 'forum':
-        // 已经在论坛页面，不需要跳转
-        break
       case 'profile':
-        // 如果有独立的个人中心路由
-        router.push('/profile')
+        // 已经在个人主页，不需要跳转
         break
       default:
-        // 其他页面（qa, resources, events, network）
+        // 其他页面（qa, resources, events, network, forum）
         // 返回主页面并设置状态（通过 URL 参数）
         router.push(`/${page}`)
     }
@@ -68,7 +64,7 @@ export default function ForumLayoutClient({ children }: ForumLayoutClientProps) 
     <>
       {/* 导航栏 - 复用主页面的 Navigation 组件 */}
       <Navigation 
-        currentPage="forum"
+        currentPage="profile"
         onPageChange={handlePageChange}
         userInfo={userInfo}
         onLogout={handleLogout}

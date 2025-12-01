@@ -1,19 +1,19 @@
-// src/app/api/forum/posts/[id]/comments/route.ts
-// 评论列表和创建 API
+// src/app/api/qa/questions/[id]/answers/route.ts
+// 答案列表和创建 API
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import {
-  createCommentSchema,
-  commentListQuerySchema,
+  createAnswerSchema,
+  answerListQuerySchema,
   idParamSchema,
-} from '@/lib/forum/validation'
-import { calculateOffset, generatePaginationMeta } from '@/lib/forum/utils'
+} from '@/lib/qa/validation'
+import { calculateOffset } from '@/lib/forum/utils'
 
-// 获取评论作者信息的选择字段
-function getCommentAuthorSelect() {
+// 获取答案作者信息的选择字段
+function getAnswerAuthorSelect() {
   return {
     id: true,
     username: true,
@@ -24,61 +24,62 @@ function getCommentAuthorSelect() {
 }
 
 /**
- * GET /api/forum/posts/[id]/comments
- * 获取帖子的评论列表
+ * GET /api/qa/questions/[id]/answers
+ * 获取问题的答案列表
  */
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+    request: NextRequest,
+    context: { params: Promise<{ id: string }> }  // ✅ 改这里
 ) {
   try {
-    // 1. 验证帖子 ID
+    // 1. 验证问题 ID
+    const params = await context.params  // ✅ 加这行
     const paramResult = idParamSchema.safeParse(params)
-    
+
     if (!paramResult.success) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid post ID',
-        },
-        { status: 400 }
+          {
+            success: false,
+            error: 'Invalid question ID',
+          },
+          { status: 400 }
       )
     }
 
-    const { id: postId } = paramResult.data
+    const { id: questionId } = paramResult.data
 
-    // 2. 检查帖子是否存在
-    const post = await prisma.post.findUnique({
-      where: { id: postId },
+    // 2. 检查问题是否存在
+    const question = await prisma.question.findUnique({
+      where: { id: questionId },
       select: { id: true, status: true },
     })
 
-    if (!post) {
+    if (!question) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Post not found',
-        },
-        { status: 404 }
+          {
+            success: false,
+            error: 'Question not found',
+          },
+          { status: 404 }
       )
     }
 
     // 3. 解析查询参数
     const { searchParams } = new URL(request.url)
-    const queryResult = commentListQuerySchema.safeParse({
+    const queryResult = answerListQuerySchema.safeParse({
       page: searchParams.get('page') || '1',
       limit: searchParams.get('limit') || '50',
-      sort: searchParams.get('sort') || 'latest',
+      sort: searchParams.get('sort') || 'votes',
     })
 
     if (!queryResult.success) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid query parameters',
-          details: queryResult.error.errors,
-        },
-        { status: 400 }
+          {
+            success: false,
+            error: 'Invalid query parameters',
+            details: queryResult.error.errors,
+          },
+          { status: 400 }
       )
     }
 
@@ -88,127 +89,123 @@ export async function GET(
     const session = await getServerSession(authOptions)
     const currentUserId = session?.user?.id
 
-    // 5. 查询评论总数（只统计顶级评论）
-    const total = await prisma.comment.count({
+    // 5. 查询答案总数
+    const total = await prisma.answer.count({
       where: {
-        postId,
-        parentId: null, // 只统计顶级评论
+        questionId,
       },
     })
 
-    // 6. 构建排序条件
-    const orderBy = sort === 'mostLiked'
-      ? { likeCount: 'desc' as const }
-      : { createdAt: 'desc' as const }
+    // 6. 构建排序条件（采纳答案优先）
+    const orderBy = sort === 'votes'
+        ? [
+          { isAccepted: 'desc' as const },  // 🆕 采纳的答案永远在最上面
+          { upvotes: 'desc' as const },     // 🆕 然后按赞同数
+          { createdAt: 'desc' as const },   // 最后按时间
+        ]
+        : [{ createdAt: 'desc' as const }]  // latest: 最新的在前
 
-    // 7. 查询评论列表（只查询顶级评论）
-    const comments = await prisma.comment.findMany({
+    // 7. 查询答案列表
+    const answers = await prisma.answer.findMany({
       where: {
-        postId,
-        parentId: null,
+        questionId,
+        // 🆕 问答没有嵌套回复，不需要 parentId 过滤
       },
       select: {
         id: true,
         content: true,
-        postId: true,
+        questionId: true,
         authorId: true,
         author: {
-          select: getCommentAuthorSelect(),
+          select: getAnswerAuthorSelect(),
         },
-        parentId: true,
+        isAccepted: true,  // 🆕 是否被采纳
+        upvotes: true,     // 🆕 赞同数
+        downvotes: true,   // 🆕 反对数
         likeCount: true,
+        status: true,
         createdAt: true,
         updatedAt: true,
-        // 查询回复
-        replies: {
-          select: {
-            id: true,
-            content: true,
-            postId: true,
-            authorId: true,
-            author: {
-              select: getCommentAuthorSelect(),
-            },
-            parentId: true,
-            likeCount: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-          orderBy: {
-            createdAt: 'asc', // 回复按时间正序
-          },
-        },
+        // 🆕 问答没有 replies
       },
       orderBy,
       skip: calculateOffset(page, limit),
       take: limit,
     })
 
-    // 8. 如果用户已登录，查询点赞状态
-    let likedCommentIds: Set<string> = new Set()
+    // 8. 如果用户已登录，查询投票状态和点赞状态
+    let votedAnswers = new Map<string, 'UPVOTE' | 'DOWNVOTE'>()
+    let likedAnswerIds = new Set<string>()
 
     if (currentUserId) {
-      // 收集所有评论ID（包括回复）
-      const allCommentIds = comments.flatMap(comment => [
-        comment.id,
-        ...comment.replies.map(reply => reply.id),
-      ])
+      const answerIds = answers.map(a => a.id)
 
-      // 批量查询点赞状态
-      const likes = await prisma.commentLike.findMany({
+      // 🆕 查询投票状态（而不是点赞状态）
+      const votes = await prisma.answerVote.findMany({
         where: {
-          commentId: { in: allCommentIds },
+          answerId: { in: answerIds },
           userId: currentUserId,
         },
         select: {
-          commentId: true,
+          answerId: true,
+          voteType: true,  // 🆕 UPVOTE 或 DOWNVOTE
         },
       })
 
-      likedCommentIds = new Set(likes.map(like => like.commentId))
+      votedAnswers = new Map(votes.map(v => [v.answerId, v.voteType]))
+
+      // 查询点赞状态（问答答案同时支持投票和点赞）
+      const likes = await prisma.answerLike.findMany({
+        where: {
+          answerId: { in: answerIds },
+          userId: currentUserId,
+        },
+        select: {
+          answerId: true,
+        },
+      })
+
+      likedAnswerIds = new Set(likes.map(like => like.answerId))
     }
 
     // 9. 格式化数据
-    const formattedComments = comments.map(comment => ({
-      ...comment,
-      createdAt: comment.createdAt.toISOString(),
-      updatedAt: comment.updatedAt.toISOString(),
-      isLiked: likedCommentIds.has(comment.id),
-      replies: comment.replies.map(reply => ({
-        ...reply,
-        createdAt: reply.createdAt.toISOString(),
-        updatedAt: reply.updatedAt.toISOString(),
-        isLiked: likedCommentIds.has(reply.id),
-      })),
+    const formattedAnswers = answers.map(answer => ({
+      ...answer,
+      createdAt: answer.createdAt.toISOString(),
+      updatedAt: answer.updatedAt.toISOString(),
+      voteScore: answer.upvotes - answer.downvotes,  // 🆕 投票分数
+      userVote: votedAnswers.get(answer.id) || null,  // 🆕 用户的投票
+      isLiked: likedAnswerIds.has(answer.id),
+      // 🆕 问答没有 replies
     }))
 
     // 10. 返回响应
     return NextResponse.json({
       success: true,
       data: {
-        comments: formattedComments,
+        answers: formattedAnswers,
         total,
       },
     })
   } catch (error) {
-    console.error('Get comments error:', error)
+    console.error('Get answers error:', error)
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Internal server error',
-      },
-      { status: 500 }
+        {
+          success: false,
+          error: 'Internal server error',
+        },
+        { status: 500 }
     )
   }
 }
 
 /**
- * POST /api/forum/posts/[id]/comments
- * 发表评论或回复
+ * POST /api/qa/questions/[id]/answers
+ * 发表答案
  */
 export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+    request: NextRequest,
+    context: { params: Promise<{ id: string }> }  // ✅ 改这里
 ) {
   try {
     // 1. 验证用户登录状态
@@ -216,32 +213,33 @@ export async function POST(
 
     if (!session?.user?.id) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Unauthorized',
-        },
-        { status: 401 }
+          {
+            success: false,
+            error: 'Unauthorized',
+          },
+          { status: 401 }
       )
     }
 
-    // 2. 验证帖子 ID
+    // 2. 验证问题 ID
+    const params = await context.params  // ✅ 加这行
     const paramResult = idParamSchema.safeParse(params)
-    
+
     if (!paramResult.success) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid post ID',
-        },
-        { status: 400 }
+          {
+            success: false,
+            error: 'Invalid question ID',
+          },
+          { status: 400 }
       )
     }
 
-    const { id: postId } = paramResult.data
+    const { id: questionId } = paramResult.data
 
-    // 3. 检查帖子是否存在
-    const post = await prisma.post.findUnique({
-      where: { id: postId },
+    // 3. 检查问题是否存在
+    const question = await prisma.question.findUnique({
+      where: { id: questionId },
       select: {
         id: true,
         status: true,
@@ -249,23 +247,23 @@ export async function POST(
       },
     })
 
-    if (!post) {
+    if (!question) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Post not found',
-        },
-        { status: 404 }
+          {
+            success: false,
+            error: 'Question not found',
+          },
+          { status: 404 }
       )
     }
 
-    if (post.status === 'DELETED') {
+    if (question.status === 'DELETED') {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Cannot comment on a deleted post',
-        },
-        { status: 400 }
+          {
+            success: false,
+            error: 'Cannot answer a deleted question',
+          },
+          { status: 400 }
       )
     }
 
@@ -273,130 +271,77 @@ export async function POST(
     const body = await request.json()
 
     // 5. 验证数据
-    const validationResult = createCommentSchema.safeParse(body)
+    const validationResult = createAnswerSchema.safeParse(body)
 
     if (!validationResult.success) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Validation failed',
-          details: validationResult.error.errors,
-        },
-        { status: 400 }
+          {
+            success: false,
+            error: 'Validation failed',
+            details: validationResult.error.errors,
+          },
+          { status: 400 }
       )
     }
 
-    const { content, parentId } = validationResult.data
+    const { content } = validationResult.data
+    // 🆕 问答不需要 parentId
 
-    // 6. 如果是回复，验证父评论
-    if (parentId) {
-      const parentComment = await prisma.comment.findUnique({
-        where: { id: parentId },
-        select: {
-          id: true,
-          postId: true,
-        },
-      })
-
-      if (!parentComment) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Parent comment not found',
-          },
-          { status: 404 }
-        )
-      }
-
-      if (parentComment.postId !== postId) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Parent comment does not belong to this post',
-          },
-          { status: 400 }
-        )
-      }
-    }
-
-    // 7. 使用事务创建评论
-    const comment = await prisma.$transaction(async (tx) => {
-      // 7.1 创建评论
-      const newComment = await tx.comment.create({
+    // 6. 使用事务创建答案
+    const answer = await prisma.$transaction(async (tx) => {
+      // 6.1 创建答案
+      const newAnswer = await tx.answer.create({
         data: {
           content,
-          postId,
+          questionId,
           authorId: session.user.id,
-          ...(parentId && { parentId }),
+          // 🆕 问答不需要 parentId
         },
         include: {
           author: {
-            select: getCommentAuthorSelect(),
+            select: getAnswerAuthorSelect(),
           },
         },
       })
 
-      // 7.2 增加帖子评论数
-      await tx.post.update({
-        where: { id: postId },
-        data: {
-          commentCount: {
-            increment: 1,
-          },
-        },
-      })
-
-      // 7.3 给评论者增加积分
+      // 6.2 增加用户积分（回答问题奖励）
       await tx.user.update({
         where: { id: session.user.id },
         data: {
           points: {
-            increment: 2, // 评论奖励2积分
+            increment: 3, // 回答问题奖励3积分
           },
         },
       })
 
-      // 7.4 如果评论的不是自己的帖子，给帖子作者增加积分
-      if (post.authorId !== session.user.id) {
-        await tx.user.update({
-          where: { id: post.authorId },
-          data: {
-            points: {
-              increment: 1, // 收到评论奖励1积分
-            },
-          },
-        })
-      }
-
-      return newComment
+      return newAnswer
     })
 
-    // 8. 格式化数据
-    const formattedComment = {
-      ...comment,
-      createdAt: comment.createdAt.toISOString(),
-      updatedAt: comment.updatedAt.toISOString(),
+    // 7. 格式化响应数据
+    const formattedAnswer = {
+      ...answer,
+      createdAt: answer.createdAt.toISOString(),
+      updatedAt: answer.updatedAt.toISOString(),
+      voteScore: 0,  // 🆕 新答案投票分数为0
+      userVote: null,  // 🆕 新答案没有投票
       isLiked: false,
     }
 
-    // 9. 返回响应
-    return NextResponse.json(
-      {
-        success: true,
-        data: {
-          comment: formattedComment,
-        },
+    // 8. 返回响应
+    return NextResponse.json({
+      success: true,
+      data: {
+        answer: formattedAnswer,
       },
-      { status: 201 }
-    )
+    })
   } catch (error) {
-    console.error('Create comment error:', error)
+    console.error('Create answer error:', error)
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Internal server error',
-      },
-      { status: 500 }
+        {
+          success: false,
+          error: 'Internal server error',
+        },
+        { status: 500 }
     )
   }
 }

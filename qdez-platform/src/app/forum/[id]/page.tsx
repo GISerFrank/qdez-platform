@@ -1,9 +1,9 @@
 // src/app/forum/[id]/page.tsx
-// 帖子详情页
+// 帖子详情页 - 修复 Next.js 15 params Promise 问题
 
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react'  // ✅ 导入 use
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
@@ -11,14 +11,18 @@ import type { PostDetail, CommentItem } from '@/types/forum'
 import { POST_CATEGORIES, formatRelativeTime, formatCount } from '@/lib/forum/utils'
 
 interface PageProps {
-  params: {
+  params: Promise<{  // ✅ params 是 Promise
     id: string
-  }
+  }>
 }
 
 export default function Page({ params }: PageProps) {
   const router = useRouter()
   const { data: session } = useSession()
+
+  // ✅ 使用 React.use() unwrap params
+  const { id } = use(params)
+
   const [post, setPost] = useState<PostDetail | null>(null)
   const [comments, setComments] = useState<CommentItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -30,13 +34,13 @@ export default function Page({ params }: PageProps) {
   useEffect(() => {
     fetchPostDetail()
     fetchComments()
-  }, [params.id])
+  }, [id])  // ✅ 依赖改为 id
 
   // 获取帖子详情
   const fetchPostDetail = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`/api/forum/posts/${params.id}`)
+      const response = await fetch(`/api/forum/posts/${id}`)
       const data = await response.json()
 
       if (!response.ok) {
@@ -55,7 +59,7 @@ export default function Page({ params }: PageProps) {
   // 获取评论列表
   const fetchComments = async () => {
     try {
-      const response = await fetch(`/api/forum/posts/${params.id}/comments?sort=latest`)
+      const response = await fetch(`/api/forum/posts/${id}/comments?sort=latest`)
       const data = await response.json()
 
       if (response.ok) {
@@ -74,7 +78,7 @@ export default function Page({ params }: PageProps) {
     }
 
     try {
-      const response = await fetch(`/api/forum/posts/${params.id}/like`, {
+      const response = await fetch(`/api/forum/posts/${id}/like`, {
         method: 'POST',
       })
       const data = await response.json()
@@ -88,56 +92,6 @@ export default function Page({ params }: PageProps) {
       }
     } catch (err) {
       console.error('Like post error:', err)
-    }
-  }
-
-  // 发表评论
-  const handleSubmitComment = async (parentId?: string) => {
-    if (!session) {
-      router.push('/login')
-      return
-    }
-
-    if (!commentContent.trim()) {
-      return
-    }
-
-    try {
-      setSubmitting(true)
-      const response = await fetch(`/api/forum/posts/${params.id}/comments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          content: commentContent.trim(),
-          ...(parentId && { parentId }),
-        }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || '发表评论失败')
-      }
-
-      // 刷新评论列表
-      await fetchComments()
-      
-      // 更新帖子评论数
-      setPost(prev => prev ? {
-        ...prev,
-        commentCount: prev.commentCount + 1,
-      } : null)
-
-      // 清空输入
-      setCommentContent('')
-      setReplyingTo(null)
-    } catch (err) {
-      console.error('Submit comment error:', err)
-      alert(err instanceof Error ? err.message : '发表评论失败')
-    } finally {
-      setSubmitting(false)
     }
   }
 
@@ -155,48 +109,87 @@ export default function Page({ params }: PageProps) {
       const data = await response.json()
 
       if (response.ok) {
-        // 更新评论点赞状态
-        setComments(prev => updateCommentLike(prev, commentId, data.data.liked, data.data.likeCount))
+        setComments(prev => prev.map(comment => {
+          if (comment.id === commentId) {
+            return {
+              ...comment,
+              isLiked: data.data.liked,
+              likeCount: data.data.likeCount,
+            }
+          }
+          // 处理嵌套回复
+          if (comment.replies) {
+            return {
+              ...comment,
+              replies: comment.replies.map(reply =>
+                  reply.id === commentId
+                      ? { ...reply, isLiked: data.data.liked, likeCount: data.data.likeCount }
+                      : reply
+              ),
+            }
+          }
+          return comment
+        }))
       }
     } catch (err) {
       console.error('Like comment error:', err)
     }
   }
 
-  // 递归更新评论点赞状态
-  const updateCommentLike = (
-    comments: CommentItem[],
-    commentId: string,
-    liked: boolean,
-    likeCount: number
-  ): CommentItem[] => {
-    return comments.map(comment => {
-      if (comment.id === commentId) {
-        return { ...comment, isLiked: liked, likeCount }
-      }
-      if (comment.replies) {
-        return {
-          ...comment,
-          replies: updateCommentLike(comment.replies, commentId, liked, likeCount),
-        }
-      }
-      return comment
-    })
-  }
+  // 发表评论
+  const handleSubmitComment = async (parentId?: string) => {
+    if (!session) {
+      router.push('/login')
+      return
+    }
 
-  // 删除帖子
-  const handleDeletePost = async () => {
-    if (!confirm('确定要删除这个帖子吗？')) {
+    if (!commentContent.trim()) {
       return
     }
 
     try {
-      const response = await fetch(`/api/forum/posts/${params.id}`, {
+      setSubmitting(true)
+      const response = await fetch(`/api/forum/posts/${id}/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: commentContent,
+          parentId,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setCommentContent('')
+        setReplyingTo(null)
+        await fetchComments()
+      } else {
+        throw new Error(data.error || '发表评论失败')
+      }
+    } catch (err) {
+      console.error('Submit comment error:', err)
+      alert(err instanceof Error ? err.message : '发表评论失败')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // 删除帖子
+  const handleDeletePost = async () => {
+    if (!confirm('确定要删除这篇帖子吗？')) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/forum/posts/${id}`, {
         method: 'DELETE',
       })
 
       if (response.ok) {
-        alert('帖子已删除')
+        alert('删除成功')
         router.push('/forum')
       } else {
         const data = await response.json()
@@ -208,229 +201,261 @@ export default function Page({ params }: PageProps) {
     }
   }
 
-  // 渲染评论
-  const renderComment = (comment: CommentItem, isReply: boolean = false) => (
-    <div
-      key={comment.id}
-      className={`${isReply ? 'ml-8 mt-3' : ''} border-l-2 border-cyan-500 pl-4 py-3`}
-    >
-      <div className="flex items-start gap-3 mb-2">
-        <div className="text-xs opacity-70">
-          👤 {comment.author.displayName || comment.author.name}
-        </div>
-        <div className="text-xs opacity-50">
-          {formatRelativeTime(comment.createdAt)}
-        </div>
-      </div>
-      
-      <p className="text-xs leading-relaxed mb-3">{comment.content}</p>
-      
-      <div className="flex gap-3">
-        <button
-          className={`pixel-btn text-xs ${comment.isLiked ? 'bg-yellow-600' : ''}`}
-          onClick={() => handleLikeComment(comment.id)}
-        >
-          👍 {formatCount(comment.likeCount)}
-        </button>
-        <button
-          className="pixel-btn text-xs"
-          onClick={() => setReplyingTo(comment.id)}
-        >
-          💬 回复
-        </button>
-      </div>
-
-      {/* 回复表单 */}
-      {replyingTo === comment.id && (
-        <div className="mt-4 p-3 bg-gray-800 bg-opacity-50">
-          <textarea
-            className="w-full bg-gray-900 border border-cyan-500 p-2 text-xs"
-            rows={3}
-            placeholder="输入回复内容..."
-            value={commentContent}
-            onChange={(e) => setCommentContent(e.target.value)}
-          />
-          <div className="flex gap-2 mt-2">
-            <button
-              className="pixel-btn text-xs"
-              onClick={() => handleSubmitComment(comment.id)}
-              disabled={submitting}
-            >
-              {submitting ? '发送中...' : '发送回复'}
-            </button>
-            <button
-              className="pixel-btn text-xs pixel-btn-secondary"
-              onClick={() => {
-                setReplyingTo(null)
-                setCommentContent('')
-              }}
-            >
-              取消
-            </button>
+  // 渲染评论（包括嵌套回复）
+  const renderComment = (comment: CommentItem, isReply = false) => (
+      <div
+          key={comment.id}
+          className={`${isReply ? 'ml-12 mt-3' : 'mb-4'} bg-[#1a1a35]/50 border border-gray-700 p-4`}
+      >
+        <div className="flex items-start gap-3 mb-3">
+          <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center text-xs font-bold">
+            {comment.author.displayName?.[0] || comment.author.name?.[0] || '?'}
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+            <span className="text-sm text-yellow-300">
+              {comment.author.displayName || comment.author.name}
+            </span>
+              <span className="text-xs text-gray-500">
+              {formatRelativeTime(comment.createdAt)}
+            </span>
+            </div>
+            <div className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
+              {comment.content}
+            </div>
           </div>
         </div>
-      )}
 
-      {/* 嵌套回复 */}
-      {comment.replies && comment.replies.length > 0 && (
-        <div className="mt-3">
-          {comment.replies.map(reply => renderComment(reply, true))}
+        <div className="flex items-center gap-4 text-xs">
+          <button
+              onClick={() => handleLikeComment(comment.id)}
+              className={`flex items-center gap-1 ${
+                  comment.isLiked ? 'text-red-400' : 'text-gray-400'
+              } hover:text-red-300`}
+          >
+            <span>{comment.isLiked ? '❤️' : '🤍'}</span>
+            <span>{formatCount(comment.likeCount)}</span>
+          </button>
+
+          {!isReply && (
+              <button
+                  onClick={() => setReplyingTo(comment.id)}
+                  className="text-cyan-400 hover:text-cyan-300"
+              >
+                💬 回复
+              </button>
+          )}
+
+          {session?.user?.id === comment.authorId && (
+              <button className="text-red-400 hover:text-red-300">
+                🗑️ 删除
+              </button>
+          )}
         </div>
-      )}
-    </div>
+
+        {/* 回复输入框 */}
+        {replyingTo === comment.id && (
+            <div className="mt-3 pl-11">
+          <textarea
+              value={commentContent}
+              onChange={(e) => setCommentContent(e.target.value)}
+              placeholder={`回复 @${comment.author.displayName || comment.author.name}...`}
+              className="w-full bg-[#0a0a1a] border border-gray-700 p-3 text-sm text-gray-300 focus:border-cyan-500 focus:outline-none min-h-[80px]"
+          />
+              <div className="flex gap-2 mt-2">
+                <button
+                    onClick={() => handleSubmitComment(comment.id)}
+                    disabled={submitting || !commentContent.trim()}
+                    className="pixel-btn text-xs"
+                >
+                  {submitting ? '发送中...' : '发送回复'}
+                </button>
+                <button
+                    onClick={() => {
+                      setReplyingTo(null)
+                      setCommentContent('')
+                    }}
+                    className="pixel-btn pixel-btn-secondary text-xs"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+        )}
+
+        {/* 嵌套回复 */}
+        {comment.replies && comment.replies.length > 0 && (
+            <div className="mt-3">
+              {comment.replies.map(reply => renderComment(reply, true))}
+            </div>
+        )}
+      </div>
   )
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-16 text-center">
-        <div className="text-4xl mb-4">⏳</div>
-        <div className="text-sm opacity-70">加载中...</div>
-      </div>
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center text-gray-400">
+            <div className="inline-block animate-spin text-3xl mb-4">⚙️</div>
+            <div>加载中...</div>
+          </div>
+        </div>
     )
   }
 
   if (error || !post) {
     return (
-      <div className="container mx-auto px-4 py-16">
-        <div className="pixel-container p-6 bg-red-900 bg-opacity-50 border-red-500">
-          <p className="text-red-300 text-sm mb-4">❌ {error || '帖子不存在'}</p>
-          <Link href="/forum" className="pixel-btn text-xs">
-            返回论坛
-          </Link>
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center text-red-400">
+            <div className="text-3xl mb-4">❌</div>
+            <div>{error || '帖子不存在'}</div>
+            <Link href="/forum" className="pixel-btn mt-4 inline-block">
+              返回论坛
+            </Link>
+          </div>
         </div>
-      </div>
     )
   }
 
-  const isAuthor = session?.user?.id === post.authorId
-
   return (
-    <div className="container mx-auto px-4 py-16">
-      {/* 返回按钮 */}
-      <div className="mb-6">
-        <Link href="/forum" className="pixel-btn text-xs">
-          ← 返回论坛
-        </Link>
-      </div>
-
-      {/* 帖子内容 */}
-      <div className="post-card">
-        {/* 标题和操作 */}
-        <div className="flex justify-between items-start mb-4">
-          <h1 className="text-lg">{post.title}</h1>
-          {isAuthor && (
-            <div className="flex gap-2">
-              <Link href={`/forum/${post.id}/edit`} className="pixel-btn text-xs">
-                ✏️ 编辑
-              </Link>
-              <button
-                className="pixel-btn text-xs bg-red-900"
-                onClick={handleDeletePost}
-              >
-                🗑️ 删除
-              </button>
-            </div>
-          )}
+      <div className="container mx-auto px-4 py-8">
+        {/* 面包屑导航 */}
+        <div className="text-xs text-gray-500 mb-6">
+          <Link href="/" className="hover:text-cyan-400">首页</Link>
+          <span className="mx-2">/</span>
+          <Link href="/forum" className="hover:text-cyan-400">论坛</Link>
+          <span className="mx-2">/</span>
+          <span className="text-gray-400">{post.title}</span>
         </div>
 
-        {/* 标签 */}
-        <div className="mb-4">
-          {post.isPinned && <span className="badge badge-featured">📌 置顶</span>}
-          {post.isFeatured && <span className="badge badge-featured">⭐ 精华</span>}
+        {/* 帖子内容 */}
+        <div className="bg-[#1a1a35]/80 border border-gray-700 p-6 mb-6">
+          {/* 分类标签 */}
+          <div className="flex items-center gap-3 mb-4">
           <span className="post-tag">
-            {POST_CATEGORIES[post.category]?.icon || '💬'} {POST_CATEGORIES[post.category]?.label || post.category}
+            {POST_CATEGORIES.find(c => c.id === post.category)?.label || post.category}
           </span>
-          {post.tags?.map(tag => (
-            <span key={tag} className="text-xs opacity-60 mr-2">#{tag}</span>
-          ))}
-        </div>
-
-        {/* 作者信息 */}
-        <div className="flex items-center gap-3 mb-4 text-xs opacity-70">
-          <span>
-            👤 {post.author.displayName || post.author.name}
-            {post.author.currentSchool && ` · ${post.author.currentSchool}`}
-          </span>
-          <span>⏰ {formatRelativeTime(post.createdAt)}</span>
-          <span>👁️ {formatCount(post.viewCount)} 浏览</span>
-        </div>
-
-        {/* 内容 */}
-        <div className="prose prose-invert max-w-none mb-6">
-          <div className="text-xs leading-relaxed whitespace-pre-wrap">
-            {post.content}
-          </div>
-        </div>
-
-        {/* 互动按钮 */}
-        <div className="flex gap-3 pt-4 border-t border-cyan-500">
-          <button
-            className={`pixel-btn text-xs ${post.isLiked ? 'bg-yellow-600' : ''}`}
-            onClick={handleLikePost}
-          >
-            👍 {formatCount(post.likeCount)}
-          </button>
-          <button className="pixel-btn text-xs">
-            💬 {formatCount(post.commentCount)} 评论
-          </button>
-        </div>
-      </div>
-
-      {/* 评论区 */}
-      <div className="mt-8">
-        <h2 className="text-lg mb-4">
-          <span className="text-yellow-300">▸</span> 评论 ({comments.length})
-        </h2>
-
-        {/* 发表评论 */}
-        {session ? (
-          <div className="post-card mb-6">
-            <textarea
-              className="w-full bg-gray-900 border border-cyan-500 p-3 text-xs"
-              rows={4}
-              placeholder="发表你的评论..."
-              value={replyingTo === null ? commentContent : ''}
-              onChange={(e) => {
-                if (replyingTo === null) {
-                  setCommentContent(e.target.value)
-                }
-              }}
-            />
-            <div className="mt-3">
-              <button
-                className="pixel-btn text-xs"
-                onClick={() => handleSubmitComment()}
-                disabled={submitting || !commentContent.trim()}
-              >
-                {submitting ? '发送中...' : '发表评论'}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="post-card mb-6 text-center">
-            <p className="text-xs opacity-70 mb-3">请先登录后发表评论</p>
-            <Link href="/login" className="pixel-btn text-xs">
-              登录
-            </Link>
-          </div>
-        )}
-
-        {/* 评论列表 */}
-        {comments.length === 0 ? (
-          <div className="post-card text-center">
-            <div className="text-4xl mb-3">💬</div>
-            <p className="text-xs opacity-70">还没有评论，来发表第一个吧！</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {comments.map(comment => (
-              <div key={comment.id} className="post-card">
-                {renderComment(comment)}
-              </div>
+            {post.isPinned && <span className="badge badge-hot">置顶</span>}
+            {post.tags?.map(tag => (
+                <span key={tag} className="text-xs text-cyan-400">#{tag}</span>
             ))}
           </div>
-        )}
+
+          {/* 标题 */}
+          <h1 className="text-2xl mb-4 text-yellow-300">{post.title}</h1>
+
+          {/* 作者信息 */}
+          <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-700">
+            <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center font-bold">
+              {post.author.displayName?.[0] || post.author.name?.[0] || '?'}
+            </div>
+            <div>
+              <div className="text-sm text-yellow-300">
+                {post.author.displayName || post.author.name}
+              </div>
+              <div className="text-xs text-gray-500">
+                {formatRelativeTime(post.createdAt)}
+                {post.updatedAt !== post.createdAt && (
+                    <span className="ml-2">(已编辑)</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* 内容 */}
+          <div className="text-gray-300 leading-relaxed mb-6 whitespace-pre-wrap">
+            {post.content}
+          </div>
+
+          {/* 操作栏 */}
+          <div className="flex items-center gap-6 pt-4 border-t border-gray-700">
+            <button
+                onClick={handleLikePost}
+                className={`flex items-center gap-2 ${
+                    post.isLiked ? 'text-red-400' : 'text-gray-400'
+                } hover:text-red-300`}
+            >
+              <span className="text-xl">{post.isLiked ? '❤️' : '🤍'}</span>
+              <span>{formatCount(post.likeCount)} 点赞</span>
+            </button>
+
+            <div className="flex items-center gap-2 text-gray-400">
+              <span className="text-xl">💬</span>
+              <span>{formatCount(post.commentCount)} 评论</span>
+            </div>
+
+            <div className="flex items-center gap-2 text-gray-400">
+              <span className="text-xl">👁️</span>
+              <span>{formatCount(post.viewCount)} 浏览</span>
+            </div>
+
+            {session?.user?.id === post.authorId && (
+                <div className="ml-auto flex gap-3">
+                  <Link
+                      href={`/forum/${id}/edit`}
+                      className="text-cyan-400 hover:text-cyan-300 text-sm"
+                  >
+                    ✏️ 编辑
+                  </Link>
+                  <button
+                      onClick={handleDeletePost}
+                      className="text-red-400 hover:text-red-300 text-sm"
+                  >
+                    🗑️ 删除
+                  </button>
+                </div>
+            )}
+          </div>
+        </div>
+
+        {/* 评论区 */}
+        <div className="bg-[#1a1a35]/80 border border-gray-700 p-6">
+          <h2 className="text-xl mb-6 flex items-center gap-2">
+            <span className="text-yellow-300">💬</span>
+            全部评论
+            <span className="text-sm text-gray-500">({comments.length})</span>
+          </h2>
+
+          {/* 发表评论 */}
+          {session ? (
+              <div className="mb-6">
+            <textarea
+                value={commentContent}
+                onChange={(e) => setCommentContent(e.target.value)}
+                placeholder="写下你的评论..."
+                className="w-full bg-[#0a0a1a] border border-gray-700 p-4 text-gray-300 focus:border-cyan-500 focus:outline-none min-h-[100px]"
+            />
+                <div className="flex justify-end mt-3">
+                  <button
+                      onClick={() => handleSubmitComment()}
+                      disabled={submitting || !commentContent.trim()}
+                      className="pixel-btn"
+                  >
+                    {submitting ? '发送中...' : '发表评论'}
+                  </button>
+                </div>
+              </div>
+          ) : (
+              <div className="mb-6 text-center py-8 bg-[#0a0a1a] border border-gray-700">
+                <div className="text-gray-400 mb-3">登录后才能发表评论</div>
+                <Link href="/login" className="pixel-btn">
+                  立即登录
+                </Link>
+              </div>
+          )}
+
+          {/* 评论列表 */}
+          {comments.length > 0 ? (
+              <div>
+                {comments.map(comment => renderComment(comment))}
+              </div>
+          ) : (
+              <div className="text-center py-12 text-gray-500">
+                <div className="text-4xl mb-3">💭</div>
+                <div>还没有评论，快来抢沙发吧！</div>
+              </div>
+          )}
+        </div>
       </div>
-    </div>
   )
 }

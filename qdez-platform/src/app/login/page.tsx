@@ -219,7 +219,7 @@ export default function LoginPage() {
 
                 // ⚠️ 修改：2秒后跳转到 campus
                 setTimeout(() => {
-                  router.push('/campus')
+                  router.push('/')
                 }, 500)
               }
             }, 200)

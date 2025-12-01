@@ -8,25 +8,27 @@ import { PostCategory, PostSortBy, CategoryInfo } from '@/types/forum'
 // ==========================================
 
 // 分类配置
-export const POST_CATEGORIES: Record<string, { label: string; icon: string }> = {
-  study: { label: '学习交流', icon: '📚' },
-  life: { label: '生活分享', icon: '🌟' },
-  career: { label: '求职招聘', icon: '💼' },
-  visa: { label: '签证问题', icon: '🛂' },
-  housing: { label: '租房信息', icon: '🏠' },
-  travel: { label: '旅游攻略', icon: '✈️' },
-  other: { label: '其他', icon: '💬' },
-}
+// ✅ 可以使用 .find() 和 .map()
+export const POST_CATEGORIES = [
+  { id: 'study', label: '学习交流', icon: '📚' },
+  { id: 'life', label: '生活分享', icon: '🌟' },
+  { id: 'career', label: '求职招聘', icon: '💼' },
+  { id: 'visa', label: '签证问题', icon: '🛂' },
+  { id: 'housing', label: '租房信息', icon: '🏠' },
+  { id: 'travel', label: '旅游攻略', icon: '✈️' },
+  { id: 'other', label: '其他', icon: '💬' },
+] as const
 
 // 获取分类信息
-export function getCategoryInfo(category: string): { label: string; icon: string } {
-  return POST_CATEGORIES[category] || { label: category, icon: '💬' }
+export function getCategoryInfo(category: string): { id: string; label: string; icon: string } {
+  const found = POST_CATEGORIES.find(c => c.id === category)
+  return found || { id: category, label: category, icon: '💬' }
 }
 
 // 获取所有分类列表
 export function getAllCategories(): CategoryInfo[] {
-  return Object.entries(POST_CATEGORIES).map(([value, { label, icon }]) => ({
-    value,
+  return POST_CATEGORIES.map(({ id, label, icon }) => ({
+    value: id,
     label,
     count: 0, // 需要从数据库查询
   }))

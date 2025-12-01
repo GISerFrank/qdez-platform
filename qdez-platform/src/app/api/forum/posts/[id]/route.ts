@@ -14,10 +14,11 @@ import { canEditPost, canDeletePost, getAuthorSelect } from '@/lib/forum/utils'
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }  // ✅ 改这里
 ) {
   try {
     // 1. 验证 ID 格式
+    const params = await context.params  // ✅ 加这行
     const paramResult = idParamSchema.safeParse(params)
     
     if (!paramResult.success) {
@@ -162,7 +163,7 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }  // ✅ 改这里
 ) {
   try {
     // 1. 验证用户登录状态
@@ -179,6 +180,7 @@ export async function PUT(
     }
 
     // 2. 验证 ID 格式
+    const params = await context.params  // ✅ 加这行
     const paramResult = idParamSchema.safeParse(params)
     
     if (!paramResult.success) {
@@ -284,6 +286,7 @@ export async function PUT(
               },
               create: {
                 name: tagName,
+                slug: tagName.toLowerCase().replace(/\s+/g, '-'),
                 useCount: 1,
               },
             })
@@ -366,7 +369,7 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }  // ✅ 改这里
 ) {
   try {
     // 1. 验证用户登录状态
@@ -383,6 +386,7 @@ export async function DELETE(
     }
 
     // 2. 验证 ID 格式
+    const params = await context.params  // ✅ 加这行
     const paramResult = idParamSchema.safeParse(params)
     
     if (!paramResult.success) {

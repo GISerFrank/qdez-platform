@@ -1,4 +1,4 @@
-// src/app/campus/NetworkPage.tsx
+// src/app/network/page.tsx
 // 更新版：支持三种关联类型（同专业、同校、同城）+ API数据
 
 'use client'
@@ -180,7 +180,7 @@ function AlumniDetailModal({
   )
 }
 
-export default function NetworkPage() {
+export default function Page() {
   // 状态
   const [relationType, setRelationType] = useState<RelationType>('all')
   const [graphData, setGraphData] = useState<{ nodes: GraphNode[], links: GraphLink[] }>({ nodes: [], links: [] })
