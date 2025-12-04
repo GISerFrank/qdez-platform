@@ -20,11 +20,11 @@ export default function QALayoutClient({ children }: QALayoutClientProps) {
       try {
         const user = JSON.parse(userInfoStr)
         setUserInfo(user)
-        
+
         // 应用主题
         const themes = ['theme-default', 'theme-arizona', 'theme-tokyo', 'theme-london', 'theme-paris', 'theme-sydney']
         themes.forEach(t => document.body.classList.remove(t))
-        
+
         if (user.theme) {
           document.body.classList.add(`theme-${user.theme}`)
         } else {
@@ -36,27 +36,6 @@ export default function QALayoutClient({ children }: QALayoutClientProps) {
     }
   }, [])
 
-  const handlePageChange = (page: string) => {
-    // 处理页面切换逻辑
-    switch(page) {
-      case 'home':
-        // 跳转到主页
-        router.push('/')
-        break
-      case 'qa':
-        // 已经在论坛页面，不需要跳转
-        break
-      case 'profile':
-        // 如果有独立的个人中心路由
-        router.push('/profile')
-        break
-      default:
-        // 其他页面（forum, resources, events, network）
-        // 返回主页面并设置状态（通过 URL 参数）
-        router.push(`/${page}`)
-    }
-  }
-
   const handleLogout = () => {
     if (confirm('确定要登出吗？')) {
       localStorage.removeItem('qdez_user')
@@ -65,22 +44,21 @@ export default function QALayoutClient({ children }: QALayoutClientProps) {
   }
 
   return (
-    <>
-      {/* 导航栏 - 复用主页面的 Navigation 组件 */}
-      <Navigation 
-        currentPage="qa"
-        onPageChange={handlePageChange}
-        userInfo={userInfo}
-        onLogout={handleLogout}
-      />
+      <>
+        {/* 导航栏 - 复用主页面的 Navigation 组件 */}
+        <Navigation
+            currentPage="qa"
+            userInfo={userInfo}
+            onLogout={handleLogout}
+        />
 
-      {/* 主内容区域 */}
-      <main className="min-h-screen">
-        {children}
-      </main>
+        {/* 主内容区域 */}
+        <main className="min-h-screen">
+          {children}
+        </main>
 
-      {/* 页脚 - 复用主页面的 Footer 组件 */}
-      <Footer />
-    </>
+        {/* 页脚 - 复用主页面的 Footer 组件 */}
+        <Footer />
+      </>
   )
 }

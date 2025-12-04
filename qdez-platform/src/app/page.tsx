@@ -1,23 +1,29 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'  // ✅ 导入 useSession
-import { signOut } from 'next-auth/react'  // ✅ 导入 signOut
+import { useEffect, useState } from 'react'
+import { useSession } from 'next-auth/react'
+import { signOut } from 'next-auth/react'
 import Navigation from './campus/Navigation'
 import HomePage from './campus/HomePage'
-import ForumPage from './forum/page'
-import QAPage from './qa/page'
-import ResourcesPage from './resources/page'
-import EventsPage from './events/page'
-import NetworkPage from './network/page'
-import ProfilePage from './profile/page'
 import Footer from './campus/Footer'
 
-export default function MainPage() {
-  const [currentPage, setCurrentPage] = useState('home')
-  const { data: session, status } = useSession()  // ✅ 使用 NextAuth session
+// 国家图标映射
+function getCountryIcon(country?: string | null): string {
+  const iconMap: Record<string, string> = {
+    '美国': '🌵',
+    '日本': '🗼',
+    '英国': '🏰',
+    '法国': '🗼',
+    '澳大利亚': '🏖️',
+  }
+  return country ? (iconMap[country] || '🌍') : '🌍'
+}
 
-  // ✅ 主题管理：基于 NextAuth session
+export default function MainPage() {
+  const { data: session, status } = useSession()
+  const [userInfo, setUserInfo] = useState<any>(null)
+
+  // 主题管理：基于 NextAuth session
   useEffect(() => {
     const themes = ['theme-default', 'theme-arizona', 'theme-tokyo', 'theme-london', 'theme-paris', 'theme-sydney']
 
@@ -40,14 +46,24 @@ export default function MainPage() {
 
       const theme = session.user.country ? countryThemeMap[session.user.country] : 'default'
       document.body.classList.add(`theme-${theme}`)
+
+      // 构造用户信息对象
+      setUserInfo({
+        name: session.user.displayName || session.user.name,
+        locationData: {
+          icon: getCountryIcon(session.user.country),
+          chinese: session.user.country || '未设置',
+        }
+      })
     } else {
       // 未登录：使用默认主题
       themes.forEach(t => document.body.classList.remove(t))
       document.body.classList.add('theme-default')
+      setUserInfo(null)
     }
   }, [session])
 
-  // ✅ 登出处理
+  // 登出处理
   const handleLogout = async () => {
     if (confirm('确定要登出吗？')) {
       // 清除旧的 localStorage 数据（兼容）
@@ -59,67 +75,19 @@ export default function MainPage() {
     }
   }
 
-  // ✅ 构造给 Navigation 的用户信息对象
-  const userInfo = session?.user ? {
-    name: session.user.displayName || session.user.name,
-    locationData: {
-      icon: getCountryIcon(session.user.country),
-      chinese: session.user.country || '未设置',
-    }
-  } : null
-
   return (
       <>
         <Navigation
-            currentPage={currentPage}
-            onPageChange={setCurrentPage}
-            userInfo={userInfo}  // ✅ 传递 NextAuth session 数据
+            currentPage="home"
+            userInfo={userInfo}
             onLogout={handleLogout}
         />
 
-        <main>
-          <div style={{ display: currentPage === 'home' ? 'block' : 'none' }}>
-            <HomePage onPageChange={setCurrentPage} />
-          </div>
-
-          <div style={{ display: currentPage === 'forum' ? 'block' : 'none' }}>
-            <ForumPage />
-          </div>
-
-          <div style={{ display: currentPage === 'qa' ? 'block' : 'none' }}>
-            <QAPage />
-          </div>
-
-          <div style={{ display: currentPage === 'resources' ? 'block' : 'none' }}>
-            <ResourcesPage />
-          </div>
-
-          <div style={{ display: currentPage === 'events' ? 'block' : 'none' }}>
-            <EventsPage />
-          </div>
-
-          <div style={{ display: currentPage === 'network' ? 'block' : 'none' }}>
-            <NetworkPage />
-          </div>
-
-          <div style={{ display: currentPage === 'profile' ? 'block' : 'none' }}>
-            <ProfilePage />
-          </div>
+        <main className="min-h-screen">
+          <HomePage />
         </main>
 
         <Footer />
       </>
   )
-}
-
-// ✅ 辅助函数：根据国家返回图标
-function getCountryIcon(country?: string): string {
-  const iconMap: Record<string, string> = {
-    '美国': '🌵',
-    '日本': '🗼',
-    '英国': '🏰',
-    '法国': '🗼',
-    '澳大利亚': '🏖️',
-  }
-  return country ? (iconMap[country] || '🌍') : '🌍'
 }

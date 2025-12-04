@@ -5,11 +5,11 @@ import { useRouter } from 'next/navigation'
 import Navigation from '../campus/Navigation'
 import Footer from '../campus/Footer'
 
-interface QALayoutClientProps {
+interface NetworkLayoutClientProps {
     children: ReactNode
 }
 
-export default function NetworkLayoutClient({ children }: QALayoutClientProps) {
+export default function NetworkLayoutClient({ children }: NetworkLayoutClientProps) {
     const router = useRouter()
     const [userInfo, setUserInfo] = useState<any>(null)
 
@@ -36,27 +36,6 @@ export default function NetworkLayoutClient({ children }: QALayoutClientProps) {
         }
     }, [])
 
-    const handlePageChange = (page: string) => {
-        // 处理页面切换逻辑
-        switch(page) {
-            case 'home':
-                // 跳转到主页
-                router.push('/')
-                break
-            case 'network':
-                // 已经在论坛页面，不需要跳转
-                break
-            case 'profile':
-                // 如果有独立的个人中心路由
-                router.push('/profile')
-                break
-            default:
-                // 其他页面（forum, resources, events, qa）
-                // 返回主页面并设置状态（通过 URL 参数）
-                router.push(`/${page}`)
-        }
-    }
-
     const handleLogout = () => {
         if (confirm('确定要登出吗？')) {
             localStorage.removeItem('qdez_user')
@@ -69,7 +48,6 @@ export default function NetworkLayoutClient({ children }: QALayoutClientProps) {
             {/* 导航栏 - 复用主页面的 Navigation 组件 */}
             <Navigation
                 currentPage="network"
-                onPageChange={handlePageChange}
                 userInfo={userInfo}
                 onLogout={handleLogout}
             />

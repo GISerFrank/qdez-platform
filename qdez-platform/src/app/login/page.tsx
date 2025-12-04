@@ -191,121 +191,55 @@ export default function LoginPage() {
     )
   }
 
-  // ✅ 保留：加载动画和背景绘制（完全不变，只在成功登录后触发）
+  // 🔥 完全重写：四个字同时逐行扫描 + 背景立即显示
   useEffect(() => {
     if (!isLoading) return
 
-    // 1. 光栅扫描渲染"青岛二中"
     const chars = ['青', '岛', '二', '中']
-    let charIndex = 0
-    let rowIndex = 0
-
-    const scanInterval = setInterval(() => {
-      if (charIndex >= chars.length) {
-        clearInterval(scanInterval)
-
-        // 所有字符扫描完成后，显示缩写
-        setTimeout(() => {
-          if (acronymRef.current) {
-            const letters = ['Q', 'D', 'E', 'Z']
-            let letterIndex = 0
-
-            const letterInterval = setInterval(() => {
-              if (letterIndex < letters.length) {
-                acronymRef.current!.textContent += letters[letterIndex] + ' '
-                letterIndex++
-              } else {
-                clearInterval(letterInterval)
-
-                // ⚠️ 修改：2秒后跳转到 campus
-                setTimeout(() => {
-                  router.push('/')
-                }, 500)
-              }
-            }, 200)
-          }
-        }, 300)
-        return
-      }
-
-      const char = chars[charIndex]
-      const matrix = charMatrix[char]
-
-      if (rowIndex < matrix.length) {
-        // 渲染当前字符的当前行
-        if (schoolNameRef.current) {
-          let charDiv = schoolNameRef.current.children[charIndex] as HTMLElement
-          if (!charDiv) {
-            charDiv = document.createElement('div')
-            charDiv.className = 'pixel-char'
-            schoolNameRef.current.appendChild(charDiv)
-          }
-
-          const row = matrix[rowIndex]
-          const rowDiv = document.createElement('div')
-          rowDiv.style.display = 'flex'
-
-          row.forEach((cell) => {
-            const cellDiv = document.createElement('div')
-            cellDiv.className = `pixel-cell ${cell ? 'on' : ''}`
-            rowDiv.appendChild(cellDiv)
-          })
-
-          charDiv.appendChild(rowDiv)
-        }
-
-        rowIndex++
-      } else {
-        // 当前字符完成，移动到下一个字符
-        charIndex++
-        rowIndex = 0
-      }
-    }, 30)
-
-    // 2. 绘制山海背景
     const canvas = canvasRef.current
-    if (!canvas) return
+    const ctx = canvas?.getContext('2d')
 
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    if (!canvas || !ctx || !schoolNameRef.current) return
 
+    // ===== 1. 初始化 Canvas 尺寸 =====
     canvas.width = window.innerWidth
     canvas.height = window.innerHeight
 
     let animationFrame = 0
 
+    // ===== 2. 获取时间颜色 =====
     const getTimeColors = () => {
       const hour = new Date().getHours()
 
       if (hour >= 0 && hour < 5) {
         return {
-          sky: ['#0a0a1a', '#1a1a2e', '#16213e', '#0f3460'],
-          mountains: { near: '#1a1a2e', mid: '#16213e', far: '#0f3460' },
-          wave: '#1e3a5f',
+          sky: ['#0a0e27', '#1a1a2e', '#16213e', '#0f3460'],
+          mountains: { near: '#16213e', mid: '#0f3460', far: '#1a1a2e' },
+          wave: '#533483',
           stars: true,
           celestial: 'moon'
         }
       } else if (hour >= 5 && hour < 7) {
         return {
-          sky: ['#1a1a2e', '#2e3a59', '#3d5a80', '#98c1d9'],
-          mountains: { near: '#2e3a59', mid: '#3d5a80', far: '#5a7d9a' },
-          wave: '#4a7ba7',
+          sky: ['#2b2d42', '#8d99ae', '#edf2f4', '#ef233c'],
+          mountains: { near: '#2b2d42', mid: '#8d99ae', far: '#edf2f4' },
+          wave: '#d90429',
           stars: false,
           celestial: 'sunrise'
         }
       } else if (hour >= 7 && hour < 9) {
         return {
-          sky: ['#ee9b00', '#faa307', '#f48c06', '#dc2f02'],
-          mountains: { near: '#9d4edd', mid: '#7b2cbf', far: '#5a189a' },
-          wave: '#e85d04',
+          sky: ['#ffd60a', '#ffc300', '#ffb703', '#fb8500'],
+          mountains: { near: '#ffb703', mid: '#fb8500', far: '#e85d04' },
+          wave: '#faa307',
           stars: false,
-          celestial: 'sun'
+          celestial: 'sunrise'
         }
       } else if (hour >= 9 && hour < 12) {
         return {
-          sky: ['#4ea8de', '#5390d9', '#5e60ce', '#6930c3'],
-          mountains: { near: '#48bfe3', mid: '#5390d9', far: '#5e60ce' },
-          wave: '#56cfe1',
+          sky: ['#4cc9f0', '#4895ef', '#4361ee', '#3f37c9'],
+          mountains: { near: '#4cc9f0', mid: '#4895ef', far: '#4361ee' },
+          wave: '#72ddf7',
           stars: false,
           celestial: 'sun'
         }
@@ -346,10 +280,10 @@ export default function LoginPage() {
 
     const colors = getTimeColors()
 
+    // ===== 3. 背景绘制函数 =====
     const drawPixelMountain = (x: number, y: number, width: number, height: number, color: string, opacity: number) => {
       ctx.globalAlpha = opacity
       ctx.fillStyle = color
-
       const pixelSize = 8
       const points: [number, number][] = []
 
@@ -362,7 +296,6 @@ export default function LoginPage() {
         if (i < points.length - 1) {
           const [x1, y1] = point
           const [x2, y2] = points[i + 1]
-
           ctx.beginPath()
           ctx.moveTo(Math.floor(x1 / pixelSize) * pixelSize, Math.floor(y1 / pixelSize) * pixelSize)
           ctx.lineTo(Math.floor(x2 / pixelSize) * pixelSize, Math.floor(y2 / pixelSize) * pixelSize)
@@ -372,19 +305,16 @@ export default function LoginPage() {
           ctx.fill()
         }
       })
-
       ctx.globalAlpha = 1
     }
 
     const drawPixelWaves = (startY: number, width: number, height: number, frame: number) => {
       const pixelSize = 4
       ctx.fillStyle = colors.wave
-
       for (let x = 0; x < width; x += pixelSize) {
         const wave1 = Math.sin((x + frame) * 0.01) * 10
         const wave2 = Math.sin((x + frame) * 0.02) * 5
         const y = startY + wave1 + wave2
-
         for (let py = Math.floor(y / pixelSize) * pixelSize; py < height; py += pixelSize) {
           ctx.fillRect(x, py, pixelSize, pixelSize)
         }
@@ -394,7 +324,6 @@ export default function LoginPage() {
     const drawStars = (width: number, height: number, frame: number) => {
       ctx.fillStyle = '#ffffff'
       const starCount = 100
-
       for (let i = 0; i < starCount; i++) {
         const x = (i * 137.508) % width
         const y = (i * 197.123) % (height * 0.6)
@@ -409,7 +338,6 @@ export default function LoginPage() {
       ctx.fillStyle = '#f0f0f0'
       const radius = 40
       const pixelSize = 4
-
       for (let px = x - radius; px < x + radius; px += pixelSize) {
         for (let py = y - radius; py < y + radius; py += pixelSize) {
           const dx = px - x
@@ -424,7 +352,6 @@ export default function LoginPage() {
     const drawSun = (x: number, y: number, intensity: number = 1) => {
       const pixelSize = 6
       const radius = 50
-
       ctx.fillStyle = `rgba(255, 220, 0, ${intensity})`
       for (let px = x - radius; px < x + radius; px += pixelSize) {
         for (let py = y - radius; py < y + radius; py += pixelSize) {
@@ -435,7 +362,6 @@ export default function LoginPage() {
           }
         }
       }
-
       ctx.globalAlpha = 0.3
       const rayCount = 12
       const rayLength = 80
@@ -445,7 +371,6 @@ export default function LoginPage() {
         const rayY = y
         const rayEndX = rayX + Math.cos(angle) * rayLength
         const rayEndY = rayY + Math.sin(angle) * rayLength
-
         const steps = Math.floor(rayLength / pixelSize)
         for (let step = 0; step < steps; step++) {
           const t = step / steps
@@ -454,13 +379,14 @@ export default function LoginPage() {
           ctx.fillRect(Math.floor(px / pixelSize) * pixelSize, Math.floor(py / pixelSize) * pixelSize, pixelSize, pixelSize)
         }
       }
-
       ctx.globalAlpha = 1
     }
 
+    // ===== 4. 背景动画循环（立即开始）=====
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
+      // 天空渐变
       const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height)
       gradient.addColorStop(0, colors.sky[0])
       gradient.addColorStop(0.4, colors.sky[1])
@@ -471,19 +397,22 @@ export default function LoginPage() {
 
       const centerY = canvas.height * 0.6
 
+      // 山峰
       drawPixelMountain(canvas.width * 0.2, centerY, 150, 100, colors.mountains.far, 0.6)
       drawPixelMountain(canvas.width * 0.5, centerY, 200, 130, colors.mountains.mid, 0.7)
       drawPixelMountain(canvas.width * 0.75, centerY, 180, 110, colors.mountains.far, 0.6)
-
       drawPixelMountain(canvas.width * 0.1, centerY, 120, 80, colors.mountains.near, 0.8)
       drawPixelMountain(canvas.width * 0.85, centerY, 140, 90, colors.mountains.near, 0.8)
 
+      // 波浪
       drawPixelWaves(centerY, canvas.width, canvas.height, animationFrame)
 
+      // 星星
       if (colors.stars) {
         drawStars(canvas.width, canvas.height, animationFrame)
       }
 
+      // 天体
       if (colors.celestial === 'moon') {
         drawMoon(canvas.width * 0.8, canvas.height * 0.2)
       } else if (colors.celestial === 'sun') {
@@ -498,7 +427,82 @@ export default function LoginPage() {
       requestAnimationFrame(animate)
     }
 
+    // 🔥 立即开始背景动画
     animate()
+
+    // ===== 5. 初始化四个字符容器 =====
+    chars.forEach(() => {
+      const charDiv = document.createElement('div')
+      charDiv.className = 'pixel-char'
+      charDiv.style.display = 'grid'
+      charDiv.style.gridTemplateColumns = 'repeat(12, 1fr)'
+      charDiv.style.gridTemplateRows = 'repeat(12, 1fr)'
+      charDiv.style.gap = '2px'
+      charDiv.style.width = '120px'
+      charDiv.style.height = '120px'
+      charDiv.style.margin = '0 15px'
+      schoolNameRef.current!.appendChild(charDiv)
+    })
+
+    // ===== 6. 四个字同时逐行扫描 =====
+    let currentRow = 0
+    const scanInterval = setInterval(() => {
+      if (currentRow >= 12) {
+        clearInterval(scanInterval)
+
+        // 所有行扫描完成，显示缩写
+        setTimeout(() => {
+          if (acronymRef.current) {
+            const letters = ['Q', 'D', 'E', 'Z']
+            let letterIndex = 0
+
+            const letterInterval = setInterval(() => {
+              if (letterIndex < letters.length) {
+                acronymRef.current!.textContent += letters[letterIndex] + ' '
+                letterIndex++
+              } else {
+                clearInterval(letterInterval)
+                // 跳转
+                setTimeout(() => {
+                  router.push('/')
+                }, 500)
+              }
+            }, 200)
+          }
+        }, 300)
+        return
+      }
+
+      // 🔥 关键：同时渲染四个字的当前行
+      chars.forEach((char, charIndex) => {
+        const matrix = charMatrix[char]
+        const row = matrix[currentRow]
+        const charDiv = schoolNameRef.current!.children[charIndex] as HTMLElement
+
+        // 添加当前行的12个像素格子
+        row.forEach((cell) => {
+          const cellDiv = document.createElement('div')
+          cellDiv.style.width = '100%'
+          cellDiv.style.height = '100%'
+          if (cell) {
+            cellDiv.style.background = '#e0f8cf'
+            cellDiv.style.border = '1px solid #e0f8cf'
+            cellDiv.style.boxShadow = '0 0 8px #e0f8cf'
+          } else {
+            cellDiv.style.background = 'transparent'
+            cellDiv.style.border = '1px solid #444'
+          }
+          charDiv.appendChild(cellDiv)
+        })
+      })
+
+      currentRow++
+    }, 30)
+
+    return () => {
+      clearInterval(scanInterval)
+    }
+
   }, [isLoading, router])
 
   const selectedLocation = location ? locations[location as keyof typeof locations] : null
